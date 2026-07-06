@@ -1,0 +1,78 @@
+name: Build IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
+          echo "Using $LATEST"
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
+
+      # Generates the native ios/ project (Xcode workspace + Podfile) from
+      # app.json + installed Expo config plugins. Runs `pod install` itself.
+      - name: Prebuild native iOS project
+        run: npx expo prebuild --platform ios
+
+      - name: Resolve workspace and scheme
+        id: resolve
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -n 1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: $SCHEME"
+
+      # Same trick as the OCHE workflow: skip signing entirely at build time.
+      # AltStore performs the real (free, personal-team) signing on-device
+      # when you sideload the resulting .ipa.
+      - name: Build (unsigned, for iOS device)
+        run: |
+          xcodebuild \
+            -workspace "${{ steps.resolve.outputs.workspace }}" \
+            -scheme "${{ steps.resolve.outputs.scheme }}" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            clean build
+
+      - name: Package IPA
+        run: |
+          APP_PATH="$RUNNER_TEMP/build/Build/Products/Release-iphoneos/${{ steps.resolve.outputs.scheme }}.app"
+          PAYLOAD_DIR="$RUNNER_TEMP/Payload"
+          mkdir -p "$PAYLOAD_DIR"
+          cp -r "$APP_PATH" "$PAYLOAD_DIR/"
+          cd "$RUNNER_TEMP"
+          zip -r -y DartMasters.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DartMasters-ipa
+          path: ${{ runner.temp }}/DartMasters.ipa

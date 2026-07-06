@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "DartMasters",
+    "slug": "DartMasters",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0E14",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.turborat.DartMasters",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0E14",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "assets": [
+      "assets/sounds/announcer"
+    ],
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DartMasters needs access to your photos so you can set a player avatar."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "DartMasters needs access to your camera to detect darts on the board."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "DartMasters needs access to your photos to save debug capture frames.",
+          "savePhotosPermission": "DartMasters needs access to save debug capture frames to your photo library."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "94e943d9-25c6-45ed-8272-5e2a78a2f265"
+      }
+    }
+  }
+}

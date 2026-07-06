@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"c:/Projects/DartMasters/assets/sfx\" && cp \"C:/Users/timva/AppData/Local/Temp/claude/c--Projects-DartMasters/881ac993-ed94-4aad-869a-2a93d0e55f2b/scratchpad/sfx_out/\"*.wav \"c:/Projects/DartMasters/assets/sfx/\" && ls -la \"c:/Projects/DartMasters/assets/sfx/\")",
+      "Bash(echo \"EXIT:$?\")",
+      "WebSearch",
+      "WebFetch(domain:mixkit.co)",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" \"https://mixkit.co/free-sound-effects/hit/\")",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://mixkit.co/free-sound-effects/hit/\" -o /tmp/hit.html)",
+      "Read(//tmp/**)",
+      "Bash(awk ' *)",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://mixkit.co/free-sound-effects/?search=dart\" -o /tmp/dartsearch.html)",
+      "Bash(grep -A3 '\"Assets\"' /dev/null; cat /c/Projects/DartMasters/.export-check/metadata.json | grep -o '\"[^\"]*sfx[^\"]*\"' )",
+      "Read(//dev/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\timva\\AppData\\Local\\Temp\\claude\\c--Projects-DartMasters\\881ac993-ed94-4aad-869a-2a93d0e55f2b\\scratchpad\\sfx_out"
+    ]
+  }
+}
