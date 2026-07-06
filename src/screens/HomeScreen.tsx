@@ -3,7 +3,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -19,7 +18,7 @@ import { RootStackParamList } from '../navigation/types';
 import { ActiveMatchPointer, ActiveMatchStorage } from '../storage/activeMatch';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { COLORS, FONT, RADIUS } from '../theme/colors';
-import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
+import { PRESS_SCALE } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 import { computeHomeOverview } from '../utils/overview';
 import { resolvePlayerDisplay } from '../utils/playerDisplay';
@@ -65,14 +64,11 @@ export function HomeScreen() {
     ? Math.round((challengeReport.completedCount / Math.max(1, challengeReport.totalCount)) * 100)
     : 0;
 
-  let section = 0;
-  const stagger = () => STAGGER_MS * section++;
-
   return (
     <Screen padded={false}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <Animated.View entering={FadeInDown.delay(stagger()).duration(300)} style={styles.header}>
+        <View style={styles.header}>
           <View style={styles.brandRow}>
             <View style={styles.logoWrap}>
               <DartboardLogo size={40} />
@@ -104,34 +100,32 @@ export function HomeScreen() {
               <Icon name="stats" size={18} color={COLORS.text} />
             </PressableScale>
           </View>
-        </Animated.View>
+        </View>
 
         {/* Continue match */}
         {continueMatchInfo && (
-          <Animated.View entering={FadeInDown.delay(stagger()).duration(300)}>
-            <PressableScale
-              scaleTo={PRESS_SCALE.row}
-              haptic="medium"
-              style={styles.continueCard}
-              onPress={() => navigation.navigate('Game', { config: activeMatch!.config })}
-            >
-              <View style={styles.continueRail} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.continueLabel}>CONTINUE MATCH</Text>
-                <Text style={styles.continueTitle}>{continueMatchInfo.modeInfo.title}</Text>
-                <Text style={styles.continueSubtitle} numberOfLines={1}>
-                  vs {continueMatchInfo.names}
-                </Text>
-              </View>
-              <View style={styles.continuePlayBtn}>
-                <Icon name="play" size={16} color={COLORS.text} />
-              </View>
-            </PressableScale>
-          </Animated.View>
+          <PressableScale
+            scaleTo={PRESS_SCALE.row}
+            haptic="medium"
+            style={styles.continueCard}
+            onPress={() => navigation.navigate('Game', { config: activeMatch!.config })}
+          >
+            <View style={styles.continueRail} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.continueLabel}>CONTINUE MATCH</Text>
+              <Text style={styles.continueTitle}>{continueMatchInfo.modeInfo.title}</Text>
+              <Text style={styles.continueSubtitle} numberOfLines={1}>
+                vs {continueMatchInfo.names}
+              </Text>
+            </View>
+            <View style={styles.continuePlayBtn}>
+              <Icon name="play" size={16} color={COLORS.text} />
+            </View>
+          </PressableScale>
         )}
 
         {/* Stats band */}
-        <Animated.View entering={FadeInDown.delay(stagger()).duration(300)} style={styles.statsBand}>
+        <View style={styles.statsBand}>
           <View style={styles.statsCell}>
             <Text style={styles.statsValue}>{overview.matches}</Text>
             <Text style={styles.statsLabel}>MATCHES</Text>
@@ -146,55 +140,51 @@ export function HomeScreen() {
             <Text style={styles.statsValue}>{overview.streak}</Text>
             <Text style={styles.statsLabel}>STREAK</Text>
           </View>
-        </Animated.View>
+        </View>
 
         {/* Challenges */}
-        <Animated.View entering={FadeInDown.delay(stagger()).duration(300)}>
-          <PressableScale
-            scaleTo={PRESS_SCALE.row}
-            haptic="light"
-            style={styles.challengesCard}
-            onPress={() => navigation.navigate('Challenges')}
-          >
-            <View style={styles.challengesIcon}>
-              <Icon name="trophy" size={20} color={COLORS.accentHot} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.challengesTitle}>Daily Challenges</Text>
-              <Text style={styles.challengesSubtitle}>
-                {challengeReport
-                  ? `${challengeReport.completedCount} of ${challengeReport.totalCount} completed`
-                  : '— of — completed'}
-              </Text>
-              <ProgressTrack percent={challengePercent} />
-            </View>
-            <Icon name="chevronRight" size={16} color={COLORS.textFaint} />
-          </PressableScale>
-        </Animated.View>
+        <PressableScale
+          scaleTo={PRESS_SCALE.row}
+          haptic="light"
+          style={styles.challengesCard}
+          onPress={() => navigation.navigate('Challenges')}
+        >
+          <View style={styles.challengesIcon}>
+            <Icon name="trophy" size={20} color={COLORS.accentHot} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.challengesTitle}>Daily Challenges</Text>
+            <Text style={styles.challengesSubtitle}>
+              {challengeReport
+                ? `${challengeReport.completedCount} of ${challengeReport.totalCount} completed`
+                : '— of — completed'}
+            </Text>
+            <ProgressTrack percent={challengePercent} />
+          </View>
+          <Icon name="chevronRight" size={16} color={COLORS.textFaint} />
+        </PressableScale>
 
         {/* New Match CTA */}
-        <Animated.View entering={FadeInDown.delay(stagger()).duration(300)}>
-          <PressableScale
-            scaleTo={PRESS_SCALE.button}
-            haptic="medium"
-            sound="buttonTap"
-            style={styles.playButton}
-            onPress={() => navigation.navigate('ModeSelect')}
-          >
-            <View style={[styles.playDecor, styles.playDecorTop]} />
-            <View style={[styles.playDecor, styles.playDecorBottom]} />
-            <View style={styles.playRow}>
-              <View style={styles.playIconCircle}>
-                <Icon name="play" size={22} color={COLORS.text} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.playTitle}>New Match</Text>
-                <Text style={styles.playSubtitle}>Choose game mode & players</Text>
-              </View>
-              <Icon name="chevronRight" size={20} color="rgba(255,255,255,0.4)" />
+        <PressableScale
+          scaleTo={PRESS_SCALE.button}
+          haptic="medium"
+          sound="buttonTap"
+          style={styles.playButton}
+          onPress={() => navigation.navigate('ModeSelect')}
+        >
+          <View style={[styles.playDecor, styles.playDecorTop]} />
+          <View style={[styles.playDecor, styles.playDecorBottom]} />
+          <View style={styles.playRow}>
+            <View style={styles.playIconCircle}>
+              <Icon name="play" size={22} color={COLORS.text} />
             </View>
-          </PressableScale>
-        </Animated.View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.playTitle}>New Match</Text>
+              <Text style={styles.playSubtitle}>Choose game mode & players</Text>
+            </View>
+            <Icon name="chevronRight" size={20} color="rgba(255,255,255,0.4)" />
+          </View>
+        </PressableScale>
 
         {/* Nav grid */}
         <View style={styles.navGrid}>
@@ -202,21 +192,18 @@ export function HomeScreen() {
             icon="stats"
             title="Stats"
             subtitle="Career performance"
-            delay={stagger()}
             onPress={() => navigation.navigate('StatsHome')}
           />
           <NavTile
             icon="users"
             title="Players"
             subtitle="Manage profiles"
-            delay={stagger()}
             onPress={() => navigation.navigate('PlayersList')}
           />
           <NavTile
             icon="medal"
             title="Leaderboard"
             subtitle="Top players"
-            delay={stagger()}
             onPress={() => navigation.navigate('Leaderboard')}
             accent
           />
@@ -224,7 +211,6 @@ export function HomeScreen() {
             icon="settings"
             title="Settings"
             subtitle="Preferences"
-            delay={stagger()}
             onPress={() => navigation.navigate('Settings')}
           />
         </View>
@@ -256,17 +242,15 @@ function NavTile({
   subtitle,
   onPress,
   accent,
-  delay,
 }: {
   icon: IconName;
   title: string;
   subtitle: string;
   onPress: () => void;
   accent?: boolean;
-  delay: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(300)} style={styles.navTileWrap}>
+    <View style={styles.navTileWrap}>
       <PressableScale
         onPress={onPress}
         scaleTo={PRESS_SCALE.row}
@@ -283,7 +267,7 @@ function NavTile({
         <Text style={styles.navTileTitle}>{title}</Text>
         <Text style={[styles.navTileSubtitle, accent && { color: COLORS.accentHot }]}>{subtitle}</Text>
       </PressableScale>
-    </Animated.View>
+    </View>
   );
 }
 
