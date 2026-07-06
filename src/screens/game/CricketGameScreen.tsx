@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
+import { CricketMark } from '../../components/CricketMark';
 import { Icon } from '../../components/icons/Icon';
 import { MultiplierSelector } from '../../components/MultiplierSelector';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
@@ -51,7 +52,6 @@ function emptyAccum(): Accum {
   return { darts: 0, turns: 0, marks: 0, totalScore: 0, highestTurn: 0 };
 }
 
-const MARK_SYMBOL = (n: number) => (n >= 3 ? '⊗' : n === 2 ? 'X' : n === 1 ? '/' : '');
 
 export function CricketGameScreen({ config }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<PlayStackParamList>>();
@@ -284,23 +284,11 @@ export function CricketGameScreen({ config }: Props) {
               <View style={styles.nameCol}>
                 <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={24} active={isActive} />
               </View>
-              {CRICKET_TARGETS.map((t) => {
-                const closed = isTargetClosedFor(p, t);
-                const dead = closedByAll(t);
-                return (
-                  <View key={t} style={styles.targetCol}>
-                    <Text
-                      style={[
-                        styles.markText,
-                        closed && { color: colors.accent },
-                        dead && styles.markTextDead,
-                      ]}
-                    >
-                      {MARK_SYMBOL(p.marks[t] || 0)}
-                    </Text>
-                  </View>
-                );
-              })}
+              {CRICKET_TARGETS.map((t) => (
+                <View key={t} style={styles.targetCol}>
+                  <CricketMark marks={p.marks[t] || 0} dead={closedByAll(t)} />
+                </View>
+              ))}
               <View style={styles.scoreCol}>
                 <AnimatedScore
                   value={p.score}
@@ -426,11 +414,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyExtraBold,
     fontSize: 12,
   },
-  markText: {
-    color: colors.textSecondary,
-    fontFamily: fonts.bodyExtraBold,
-    fontSize: 18,
-  },
   scoreText: {
     fontSize: 20,
     color: colors.textPrimary,
@@ -461,9 +444,6 @@ const styles = StyleSheet.create({
   targetHeaderClosed: {
     color: colors.textDim,
     textDecorationLine: 'line-through',
-  },
-  markTextDead: {
-    color: colors.textDim,
   },
   toast: {
     position: 'absolute',

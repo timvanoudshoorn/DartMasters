@@ -6,8 +6,8 @@ import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { Icon } from '../components/icons/Icon';
-import { PlayerAvatar } from '../components/PlayerAvatar';
+import { Icon, IconName } from '../components/icons/Icon';
+import { iconAvatar, PlayerAvatar } from '../components/PlayerAvatar';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { PlayersStackParamList } from '../navigation/types';
@@ -27,10 +27,11 @@ function deleteFileIfExists(uri: string) {
 
 type Route = { params: { playerId?: string } };
 
-const EMOJI_OPTIONS = [
-  '🎯', '🔥', '⚡', '👑', '💀', '🐉', '🦅', '🐺',
-  '🦁', '🐯', '🦂', '🥇', '🚀', '⭐', '💎', '🍀',
-  '🍺', '🎩', '🦾', '🤖', '👽', '🧨', '🃏', '🎮',
+// Icon-based avatar choices, rendered in the player's chosen color.
+const ICON_AVATARS: IconName[] = [
+  'target', 'flame', 'bolt', 'crown', 'skull', 'crosshair',
+  'shield', 'star', 'trophy', 'medal', 'rocket', 'anchor',
+  'compass', 'feather', 'moon', 'sun', 'gamepad', 'robot',
 ];
 
 export function PlayerEditScreen() {
@@ -164,20 +165,27 @@ export function PlayerEditScreen() {
         >
           <Text style={styles.initialsPreview}>Aa</Text>
         </PressableScale>
-        {EMOJI_OPTIONS.map((e) => (
-          <PressableScale
-            key={e}
-            onPress={() => {
-              setAvatar(e);
-              clearPhoto();
-            }}
-            haptic="tick"
-            scaleTo={0.88}
-            style={[styles.emojiSwatch, avatar === e && styles.colorSwatchSelected]}
-          >
-            <Text style={styles.emojiText}>{e}</Text>
-          </PressableScale>
-        ))}
+        {ICON_AVATARS.map((iconName) => {
+          const value = iconAvatar(iconName);
+          const selected = avatar === value;
+          return (
+            <PressableScale
+              key={iconName}
+              onPress={() => {
+                setAvatar(value);
+                clearPhoto();
+              }}
+              haptic="tick"
+              scaleTo={0.88}
+              style={[
+                styles.emojiSwatch,
+                selected && [styles.colorSwatchSelected, { backgroundColor: color + '26' }],
+              ]}
+            >
+              <Icon name={iconName} size={20} color={selected ? color : colors.textSecondary} />
+            </PressableScale>
+          );
+        })}
       </View>
 
       <Text style={[styles.label, { marginTop: spacing.lg }]}>COLOR</Text>
@@ -284,9 +292,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCardAlt,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emojiText: {
-    fontSize: 20,
   },
   initialsPreview: {
     fontFamily: fonts.bodyExtraBold,

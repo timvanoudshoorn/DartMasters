@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { Icon } from '../../components/icons/Icon';
+import { LifeDots } from '../../components/LifeDots';
 import { MultiplierSelector } from '../../components/MultiplierSelector';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { PressableScale } from '../../components/primitives/PressableScale';
@@ -439,15 +440,7 @@ export function KillerGameScreen({ config }: Props) {
                   #{kp.number}
                 </Text>
                 <View style={styles.livesRow}>
-                  {Array.from({ length: maxLives }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.lifeDot,
-                        i < kp.lives ? { backgroundColor: colors.danger } : { backgroundColor: colors.bgCardAlt },
-                      ]}
-                    />
-                  ))}
+                  <LifeDots lives={kp.lives} maxLives={maxLives} />
                 </View>
                 {kp.isKiller && !kp.eliminated && <Text style={styles.killerBadge}>KILLER</Text>}
                 {kp.eliminated && <Text style={styles.eliminatedText}>OUT</Text>}
@@ -697,11 +690,6 @@ const styles = StyleSheet.create({
     gap: 4,
     flexWrap: 'wrap',
     justifyContent: 'center',
-  },
-  lifeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   killerBadge: {
     marginTop: spacing.xs,

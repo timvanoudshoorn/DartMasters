@@ -1,12 +1,21 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { Screen } from '../components/Screen';
 import { ChallengeStatus, computeDailyChallengeReport, DailyChallengeReport } from '../logic/challengeProgress';
 import { colors, fonts, radius, spacing } from '../theme';
+import { STAGGER_MS } from '../theme/motion';
 
 type Tab = 'solo' | 'multiplayer';
 
@@ -41,8 +50,8 @@ export function ChallengesScreen() {
       </View>
 
       <View style={styles.list}>
-        {list.map((status) => (
-          <ChallengeCard key={status.definition.id} status={status} />
+        {list.map((status, i) => (
+          <ChallengeCard key={`${tab}-${status.definition.id}`} status={status} index={i} />
         ))}
       </View>
 
@@ -59,18 +68,24 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
   );
 }
 
-function ChallengeCard({ status }: { status: ChallengeStatus }) {
+function ChallengeCard({ status, index }: { status: ChallengeStatus; index: number }) {
   const { definition, progress, completed } = status;
   const percent = definition.target > 0 ? Math.min(1, progress / definition.target) : 0;
 
   return (
-    <View style={[styles.card, completed && styles.cardCompleted]}>
+    <Animated.View
+      entering={FadeInDown.delay(index * STAGGER_MS).duration(260)}
+      style={[styles.card, completed && styles.cardCompleted]}
+    >
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{definition.title}</Text>
         {completed ? (
-          <View style={styles.checkBadge}>
+          <Animated.View
+            entering={ZoomIn.delay(index * STAGGER_MS + 200).springify().damping(11)}
+            style={styles.checkBadge}
+          >
             <Icon name="checkmark" size={14} color="#0A0A0A" />
-          </View>
+          </Animated.View>
         ) : (
           <Text style={styles.cardCount}>
             {progress}/{definition.target}
@@ -78,10 +93,23 @@ function ChallengeCard({ status }: { status: ChallengeStatus }) {
         )}
       </View>
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.round(percent * 100)}%` }]} />
+        <ProgressFill percent={percent * 100} delay={index * STAGGER_MS + 150} />
       </View>
-    </View>
+    </Animated.View>
   );
+}
+
+/** Fill sweeps to its value after the card lands instead of appearing pre-filled. */
+function ProgressFill({ percent, delay }: { percent: number; delay: number }) {
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.value = withDelay(delay, withTiming(percent, { duration: 550 }));
+  }, [percent]);
+
+  const style = useAnimatedStyle(() => ({ width: `${width.value}%` }));
+
+  return <Animated.View style={[styles.progressFill, style]} />;
 }
 
 const styles = StyleSheet.create({

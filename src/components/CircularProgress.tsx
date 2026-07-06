@@ -1,7 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedProps,
+  useSharedValue,
+  withDelay,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { Circle, Svg } from 'react-native-svg';
 import { colors, fonts } from '../theme';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface CircularProgressProps {
   percent: number;
@@ -11,6 +20,7 @@ interface CircularProgressProps {
   label: string;
 }
 
+/** Ring that sweeps to its value on mount instead of appearing pre-drawn. */
 export function CircularProgress({
   percent,
   size = 64,
@@ -21,7 +31,19 @@ export function CircularProgress({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(100, percent));
-  const offset = circumference * (1 - clamped / 100);
+
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(
+      200,
+      withTiming(clamped, { duration: 800, easing: Easing.out(Easing.cubic) })
+    );
+  }, [clamped]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference * (1 - progress.value / 100),
+  }));
 
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
@@ -34,7 +56,7 @@ export function CircularProgress({
           strokeWidth={strokeWidth}
           fill="none"
         />
-        <Circle
+        <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={radius}
@@ -42,7 +64,7 @@ export function CircularProgress({
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={offset}
+          animatedProps={animatedProps}
           fill="none"
           rotation={-90}
           origin={`${size / 2}, ${size / 2}`}

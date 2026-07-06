@@ -10,6 +10,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { DartboardLogo } from '../components/DartboardLogo';
 import { Icon, IconName } from '../components/icons/Icon';
+import { CountUp } from '../components/primitives/CountUp';
+import { MountReveal } from '../components/primitives/MountReveal';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
@@ -18,7 +20,7 @@ import { RootStackParamList } from '../navigation/types';
 import { ActiveMatchPointer, ActiveMatchStorage } from '../storage/activeMatch';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { COLORS, FONT, RADIUS } from '../theme/colors';
-import { PRESS_SCALE } from '../theme/motion';
+import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 import { computeHomeOverview } from '../utils/overview';
 import { resolvePlayerDisplay } from '../utils/playerDisplay';
@@ -68,6 +70,7 @@ export function HomeScreen() {
     <Screen padded={false}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
+        <MountReveal delay={0}>
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <View style={styles.logoWrap}>
@@ -101,9 +104,11 @@ export function HomeScreen() {
             </PressableScale>
           </View>
         </View>
+        </MountReveal>
 
         {/* Continue match */}
         {continueMatchInfo && (
+          <MountReveal delay={STAGGER_MS}>
           <PressableScale
             scaleTo={PRESS_SCALE.row}
             haptic="medium"
@@ -122,27 +127,37 @@ export function HomeScreen() {
               <Icon name="play" size={16} color={COLORS.text} />
             </View>
           </PressableScale>
+          </MountReveal>
         )}
 
         {/* Stats band */}
+        <MountReveal delay={STAGGER_MS * 2}>
         <View style={styles.statsBand}>
           <View style={styles.statsCell}>
-            <Text style={styles.statsValue}>{overview.matches}</Text>
+            <CountUp value={overview.matches} delay={250} duration={600} style={styles.statsValue} />
             <Text style={styles.statsLabel}>MATCHES</Text>
           </View>
           <View style={styles.statsDivider} />
           <View style={styles.statsCell}>
-            <Text style={[styles.statsValue, { color: COLORS.accentHot }]}>{overview.winRate}%</Text>
+            <CountUp
+              value={overview.winRate}
+              delay={250}
+              duration={600}
+              format={(n) => `${Math.round(n)}%`}
+              style={[styles.statsValue, { color: COLORS.accentHot }]}
+            />
             <Text style={styles.statsLabel}>WIN RATE</Text>
           </View>
           <View style={styles.statsDivider} />
           <View style={styles.statsCell}>
-            <Text style={styles.statsValue}>{overview.streak}</Text>
+            <CountUp value={overview.streak} delay={250} duration={600} style={styles.statsValue} />
             <Text style={styles.statsLabel}>STREAK</Text>
           </View>
         </View>
+        </MountReveal>
 
         {/* Challenges */}
+        <MountReveal delay={STAGGER_MS * 3}>
         <PressableScale
           scaleTo={PRESS_SCALE.row}
           haptic="light"
@@ -163,8 +178,10 @@ export function HomeScreen() {
           </View>
           <Icon name="chevronRight" size={16} color={COLORS.textFaint} />
         </PressableScale>
+        </MountReveal>
 
         {/* New Match CTA */}
+        <MountReveal delay={STAGGER_MS * 4}>
         <PressableScale
           scaleTo={PRESS_SCALE.button}
           haptic="medium"
@@ -185,8 +202,10 @@ export function HomeScreen() {
             <Icon name="chevronRight" size={20} color="rgba(255,255,255,0.4)" />
           </View>
         </PressableScale>
+        </MountReveal>
 
         {/* Nav grid */}
+        <MountReveal delay={STAGGER_MS * 5}>
         <View style={styles.navGrid}>
           <NavTile
             icon="stats"
@@ -214,6 +233,7 @@ export function HomeScreen() {
             onPress={() => navigation.navigate('Settings')}
           />
         </View>
+        </MountReveal>
       </ScrollView>
     </Screen>
   );
