@@ -2,6 +2,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
+import { DeviceMotion, DeviceMotionMeasurement } from 'expo-sensors';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
@@ -40,7 +41,12 @@ const SYSTEM_PROMPT =
   'You are a dart scoring assistant. Analyze dartboard images and return ONLY valid JSON. Never return anything else.';
 
 const USER_PROMPT =
-  'This is a dartboard. The board has numbered segments 1-20 arranged in a specific clockwise order: starting from the top and going clockwise: 20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5. Look carefully for metal dart shafts or dart tips embedded in the board. Each dart will appear as a thin metallic object sticking out of the board surface. For each dart you can see: identify which numbered segment it landed in, whether it is in the thin outer ring (double = score x2), thin inner ring (triple = score x3), large outer section (single = score x1), outer bull circle (25 points), or inner bull circle (50 points). Only count darts that are physically stuck in the board. Return ONLY valid JSON, no other text: {"darts": [{"segment": 20, "multiplier": 1, "score": 20, "description": "Single 20"}], "total": 20, "confidence": "high", "notes": "1 dart detected"}';
+  'This is a dartboard, likely photographed from an angled (non-perpendicular) camera position rather than straight-on. Because of this, the board\'s rings are ellipses, not circles: the ring nearest the camera looks wider and the ring farthest from the camera looks much thinner or can even seem to disappear. Do NOT judge double/triple ring membership by absolute pixel width alone — instead, for each dart, compare its distance from the board center to the local ring boundaries on the SAME side of the board (same angle from center), since ring width varies by position under perspective. The board has numbered segments 1-20 arranged in a specific clockwise order: starting from the top and going clockwise: 20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5. Look carefully for metal dart shafts or dart tips embedded in the board. Each dart will appear as a thin metallic object sticking out of the board surface. For each dart you can see: identify which numbered segment it landed in, whether it is in the thin outer ring (double = score x2), thin inner ring (triple = score x3), large outer section (single = score x1), outer bull circle (25 points), or inner bull circle (50 points). Only count darts that are physically stuck in the board. If the viewing angle is too oblique to confidently distinguish a ring boundary for a dart, set "confidence" to "low" and say so in "notes" rather than guessing. Return ONLY valid JSON, no other text: {"darts": [{"segment": 20, "multiplier": 1, "score": 20, "description": "Single 20"}], "total": 20, "confidence": "high", "notes": "1 dart detected"}';
+
+// Device pitch (forward/back tilt) beyond this many degrees from level
+// makes the board's rings foreshorten enough to confuse detection.
+const TILT_GOOD_DEG = 10;
+const TILT_WARN_DEG = 25;
 
 interface DetectedDart {
   segment: number;
@@ -158,6 +164,28 @@ export function CameraScoringScreen() {
   const [manualEntry, setManualEntry] = useState(false);
   const [manualDarts, setManualDarts] = useState<Dart[]>([]);
   const [manualMultiplier, setManualMultiplier] = useState<Multiplier>(1);
+
+  const [tiltDeg, setTiltDeg] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!permission?.granted) return;
+    DeviceMotion.setUpdateInterval(300);
+    const sub = DeviceMotion.addListener((measurement: DeviceMotionMeasurement) => {
+      const beta = measurement.rotation?.beta;
+      if (typeof beta !== 'number') return;
+      setTiltDeg(Math.abs(beta * (180 / Math.PI)));
+    });
+    return () => sub.remove();
+  }, [permission?.granted]);
+
+  const tiltGuidance: { label: string; ok: boolean } | null =
+    tiltDeg === null
+      ? null
+      : tiltDeg <= TILT_GOOD_DEG
+      ? { label: 'Good angle — hold steady', ok: true }
+      : tiltDeg <= TILT_WARN_DEG
+      ? { label: 'Level the phone with the board for better accuracy', ok: false }
+      : { label: 'Too steep — mount level with the board center', ok: false };
 
   const detectDarts = async () => {
     if (!cameraRef.current) return;
@@ -506,6 +534,9 @@ export function CameraScoringScreen() {
               ? 'Ready — throw your darts'
               : 'Point camera at dartboard'}
           </Text>
+          {tiltGuidance && (
+            <Text style={[styles.statusText, !tiltGuidance.ok && styles.tiltWarnText]}>{tiltGuidance.label}</Text>
+          )}
         </View>
       )}
 
@@ -763,6 +794,10 @@ const styles = StyleSheet.create({
     fontFamily: FONT.regular,
     fontSize: 14,
     textAlign: 'center',
+  },
+  tiltWarnText: {
+    color: COLORS.accent,
+    marginTop: 4,
   },
   errorText: {
     color: COLORS.bust,
