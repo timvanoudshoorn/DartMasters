@@ -49,13 +49,19 @@ export function GameSummaryScreen() {
   const [players, setPlayers] = useState<Record<string, Player>>({});
 
   useEffect(() => {
-    Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()]).then(([matches, all]) => {
-      const found = matches.find((m) => m.id === route.params.matchId) ?? null;
-      setMatch(found);
-      const map: Record<string, Player> = {};
-      all.forEach((p) => (map[p.id] = p));
-      setPlayers(map);
-    });
+    Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])
+      .then(([matches, all]) => {
+        const found = matches.find((m) => m.id === route.params.matchId) ?? null;
+        setMatch(found);
+        const map: Record<string, Player> = {};
+        all.forEach((p) => (map[p.id] = p));
+        setPlayers(map);
+      })
+      .catch((err) => {
+        console.error('[GameSummaryScreen] Failed to load data:', err);
+        setMatch(null);
+        setPlayers({});
+      });
   }, [route.params.matchId]);
 
   // Physical echo of the on-screen reveal: a thump as the trophy lands,
