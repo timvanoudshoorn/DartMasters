@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { DartboardLogo } from '../components/DartboardLogo';
 import { Icon, IconName } from '../components/icons/Icon';
+import { MountReveal } from '../components/primitives/MountReveal';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
@@ -18,7 +19,7 @@ import { RootStackParamList } from '../navigation/types';
 import { ActiveMatchPointer, ActiveMatchStorage } from '../storage/activeMatch';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { COLORS, FONT, RADIUS } from '../theme/colors';
-import { PRESS_SCALE } from '../theme/motion';
+import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 import { computeHomeOverview } from '../utils/overview';
 import { resolvePlayerDisplay } from '../utils/playerDisplay';
@@ -68,7 +69,7 @@ export function HomeScreen() {
     <Screen padded={false}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={styles.header}>
+        <MountReveal style={styles.header} delay={0}>
           <View style={styles.brandRow}>
             <View style={styles.logoWrap}>
               <DartboardLogo size={40} />
@@ -100,32 +101,34 @@ export function HomeScreen() {
               <Icon name="stats" size={18} color={COLORS.text} />
             </PressableScale>
           </View>
-        </View>
+        </MountReveal>
 
         {/* Continue match */}
         {continueMatchInfo && (
-          <PressableScale
-            scaleTo={PRESS_SCALE.row}
-            haptic="medium"
-            style={styles.continueCard}
-            onPress={() => navigation.navigate('Game', { config: activeMatch!.config })}
-          >
-            <View style={styles.continueRail} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.continueLabel}>CONTINUE MATCH</Text>
-              <Text style={styles.continueTitle}>{continueMatchInfo.modeInfo.title}</Text>
-              <Text style={styles.continueSubtitle} numberOfLines={1}>
-                vs {continueMatchInfo.names}
-              </Text>
-            </View>
-            <View style={styles.continuePlayBtn}>
-              <Icon name="play" size={16} color={COLORS.text} />
-            </View>
-          </PressableScale>
+          <MountReveal delay={STAGGER_MS}>
+            <PressableScale
+              scaleTo={PRESS_SCALE.row}
+              haptic="medium"
+              style={styles.continueCard}
+              onPress={() => navigation.navigate('Game', { config: activeMatch!.config })}
+            >
+              <View style={styles.continueRail} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.continueLabel}>CONTINUE MATCH</Text>
+                <Text style={styles.continueTitle}>{continueMatchInfo.modeInfo.title}</Text>
+                <Text style={styles.continueSubtitle} numberOfLines={1}>
+                  vs {continueMatchInfo.names}
+                </Text>
+              </View>
+              <View style={styles.continuePlayBtn}>
+                <Icon name="play" size={16} color={COLORS.text} />
+              </View>
+            </PressableScale>
+          </MountReveal>
         )}
 
         {/* Stats band */}
-        <View style={styles.statsBand}>
+        <MountReveal delay={continueMatchInfo ? STAGGER_MS * 2 : STAGGER_MS} style={styles.statsBand}>
           <View style={styles.statsCell}>
             <Text style={styles.statsValue}>{overview.matches}</Text>
             <Text style={styles.statsLabel}>MATCHES</Text>
@@ -140,54 +143,61 @@ export function HomeScreen() {
             <Text style={styles.statsValue}>{overview.streak}</Text>
             <Text style={styles.statsLabel}>STREAK</Text>
           </View>
-        </View>
+        </MountReveal>
 
         {/* Challenges */}
-        <PressableScale
-          scaleTo={PRESS_SCALE.row}
-          haptic="light"
-          style={styles.challengesCard}
-          onPress={() => navigation.navigate('Challenges')}
-        >
-          <View style={styles.challengesIcon}>
-            <Icon name="trophy" size={20} color={COLORS.accentHot} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.challengesTitle}>Daily Challenges</Text>
-            <Text style={styles.challengesSubtitle}>
-              {challengeReport
-                ? `${challengeReport.completedCount} of ${challengeReport.totalCount} completed`
-                : '— of — completed'}
-            </Text>
-            <ProgressTrack percent={challengePercent} />
-          </View>
-          <Icon name="chevronRight" size={16} color={COLORS.textFaint} />
-        </PressableScale>
-
-        {/* New Match CTA */}
-        <PressableScale
-          scaleTo={PRESS_SCALE.button}
-          haptic="medium"
-          sound="buttonTap"
-          style={styles.playButton}
-          onPress={() => navigation.navigate('ModeSelect')}
-        >
-          <View style={[styles.playDecor, styles.playDecorTop]} />
-          <View style={[styles.playDecor, styles.playDecorBottom]} />
-          <View style={styles.playRow}>
-            <View style={styles.playIconCircle}>
-              <Icon name="play" size={22} color={COLORS.text} />
+        <MountReveal delay={continueMatchInfo ? STAGGER_MS * 3 : STAGGER_MS * 2}>
+          <PressableScale
+            scaleTo={PRESS_SCALE.row}
+            haptic="light"
+            style={styles.challengesCard}
+            onPress={() => navigation.navigate('Challenges')}
+          >
+            <View style={styles.challengesIcon}>
+              <Icon name="trophy" size={20} color={COLORS.accentHot} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.playTitle}>New Match</Text>
-              <Text style={styles.playSubtitle}>Choose game mode & players</Text>
+              <Text style={styles.challengesTitle}>Daily Challenges</Text>
+              <Text style={styles.challengesSubtitle}>
+                {challengeReport
+                  ? `${challengeReport.completedCount} of ${challengeReport.totalCount} completed`
+                  : '— of — completed'}
+              </Text>
+              <ProgressTrack percent={challengePercent} />
             </View>
-            <Icon name="chevronRight" size={20} color="rgba(255,255,255,0.4)" />
-          </View>
-        </PressableScale>
+            <Icon name="chevronRight" size={16} color={COLORS.textFaint} />
+          </PressableScale>
+        </MountReveal>
+
+        {/* New Match CTA */}
+        <MountReveal delay={continueMatchInfo ? STAGGER_MS * 4 : STAGGER_MS * 3}>
+          <PressableScale
+            scaleTo={PRESS_SCALE.button}
+            haptic="medium"
+            sound="buttonTap"
+            style={styles.playButton}
+            onPress={() => navigation.navigate('ModeSelect')}
+          >
+            <View style={[styles.playDecor, styles.playDecorTop]} />
+            <View style={[styles.playDecor, styles.playDecorBottom]} />
+            <View style={styles.playRow}>
+              <View style={styles.playIconCircle}>
+                <Icon name="play" size={22} color={COLORS.text} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.playTitle}>New Match</Text>
+                <Text style={styles.playSubtitle}>Choose game mode & players</Text>
+              </View>
+              <Icon name="chevronRight" size={20} color="rgba(255,255,255,0.4)" />
+            </View>
+          </PressableScale>
+        </MountReveal>
 
         {/* Nav grid */}
-        <View style={styles.navGrid}>
+        <MountReveal
+          delay={continueMatchInfo ? STAGGER_MS * 5 : STAGGER_MS * 4}
+          style={styles.navGrid}
+        >
           <NavTile
             icon="stats"
             title="Stats"
@@ -213,7 +223,7 @@ export function HomeScreen() {
             subtitle="Preferences"
             onPress={() => navigation.navigate('Settings')}
           />
-        </View>
+        </MountReveal>
       </ScrollView>
     </Screen>
   );
