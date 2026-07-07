@@ -30,7 +30,9 @@ export function SettingsScreen() {
   const update = (patch: Partial<AppSettings>) => {
     const next = { ...settings, ...patch };
     setSettings(next);
-    SettingsStorage.save(next);
+    SettingsStorage.save(next).catch((err) => {
+      console.error('[SettingsScreen] Failed to save settings:', err);
+    });
     if (patch.soundEnabled !== undefined) setSoundEnabled(patch.soundEnabled);
   };
 
