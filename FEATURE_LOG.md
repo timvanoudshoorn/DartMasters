@@ -22,3 +22,49 @@ Working branch: `feature-build` (backend/logic/systems only, no visual styling c
     user to hold the phone level with the board before throwing — this
     reduces the very foreshortening that confuses detection. Installed
     `expo-sensors` via `npx expo install`.
+
+### Bull Off N-1 logic (backlog #2)
+- Verified: `BullOffScreen.tsx` already auto-resolves the last remaining
+  human's position the instant only one is left (`remainingHumans.length
+  === 1` effect), without waiting for a redundant tap. No change needed.
+
+### Game mode logic audit (backlog #3)
+Reviewed every mode's logic module against CLAUDE.md/standard rules; all
+complete, no gaps found:
+- `x01.ts` — double-in gating, bust rules (including the outMode !=
+  straight "leaves 1" bust), double/master/straight-out validation. Fine.
+- `cricket.ts` — closing at 3 marks, cut-throat vs standard scoring,
+  winner requires all-closed AND score >= max among all players. Fine.
+- `killer.ts` — number claiming, life-building on own number, killer
+  status gated on exact max lives, attacks only land from a Killer,
+  losing killer status when dropped below max, elimination at 0 lives.
+  `KillerGameScreen.tsx` correctly skips eliminated players in turn
+  rotation (`nextActiveIndex`). Fine.
+- `shanghai.ts` — instant win requires single+double+triple of the round
+  target in one visit; wired to end the match immediately in
+  `ShanghaiGameScreen.tsx`. Fine.
+- `aroundTheClock.ts` — skip-ahead mode, bull can't be skipped into, two
+  hits (or one double) needed to finish on bull. Fine.
+- `bobs27.ts` — 20 rounds (doubles 1-20), correct win/lose scoring per
+  round. Fine.
+- `Practice170GameScreen.tsx` — shared checkout target passed between
+  players each turn, double-out enforced. Fine.
+
+### Daily Challenges wiring (backlog #4)
+- `computeDailyChallengeReport` recomputes from `MatchStorage`/
+  `BullOffStorage` on every call using `new Date()`, filtering to same
+  calendar day — no persisted "last reset" state, so it can't go stale
+  and resets correctly at local midnight automatically.
+- `ChallengesScreen.tsx` re-runs the report on every screen focus
+  (`useFocusEffect`), so today's progress is always fresh.
+- Traced every producer field the challenge defs read (`oneEighties`,
+  `bestLegDarts`, `checkoutHits`, `count100Plus`, `threeDartAvg`,
+  `highestCheckout`, `doublesHit`, `missCount`, `marksPerRound`,
+  `eliminationsCount`, `killerEverPlayerIds`, `legWinnerHistory`,
+  `outscoredEveryRound`) back to where each game screen sets it — all
+  are wired, none are dead reads. Fine.
+
+## Autonomous pass beyond the backlog
+Went looking for any other incomplete systems and found none — the
+codebase's game logic is in solid shape. Stopping here rather than
+inventing busywork, per instructions.
