@@ -33,14 +33,21 @@ export function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll(), ActiveMatchStorage.get()]).then(
-        ([p, m, active]) => {
+      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll(), ActiveMatchStorage.get()])
+        .then(([p, m, active]) => {
           setPlayers(p);
           setMatches(m);
           setActiveMatch(active);
-        }
-      );
-      computeDailyChallengeReport().then(setChallengeReport);
+        })
+        .catch((err) => {
+          console.error('[HomeScreen] Failed to load data:', err);
+          setPlayers([]);
+          setMatches([]);
+          setActiveMatch(null);
+        });
+      computeDailyChallengeReport().then(setChallengeReport).catch((err) => {
+        console.error('[HomeScreen] Failed to compute challenge report:', err);
+      });
     }, [])
   );
 
