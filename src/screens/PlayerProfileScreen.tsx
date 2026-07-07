@@ -31,10 +31,16 @@ export function PlayerProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll()]).then(([players, m]) => {
-        setPlayer(players.find((p) => p.id === playerId) ?? null);
-        setMatches(m.filter((match) => match.results[playerId]));
-      });
+      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll()])
+        .then(([players, m]) => {
+          setPlayer(players.find((p) => p.id === playerId) ?? null);
+          setMatches(m.filter((match) => match.results[playerId]));
+        })
+        .catch((err) => {
+          console.error('[PlayerProfileScreen] Failed to load data:', err);
+          setPlayer(null);
+          setMatches([]);
+        });
     }, [playerId])
   );
 
