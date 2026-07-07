@@ -176,7 +176,7 @@ export function CameraScoringScreen() {
 
     let photoBase64: string | undefined;
     try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.8 });
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.8, shutterSound: false });
       photoBase64 = photo?.base64;
       if (DEBUG_SAVE_FRAMES && photo?.uri) {
         saveDebugFrame(photo.uri).catch(() => {});
