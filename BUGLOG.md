@@ -22,6 +22,14 @@
 **Status:** ✅ Already Fixed
 **Note:** Both `App.tsx` and `src/utils/dartAnnouncer.ts` already have `Audio.setAudioModeAsync()` with `playsInSilentModeIOS: true` configured.
 
+### 4. Missing Error Handling for MatchStorage.save
+**Commit:** `187f345`
+**Issue:** When a match is completed, if AsyncStorage.save() fails, the app gets stuck on the game screen without navigating to the summary screen.
+**Root Cause:** All game screens called `MatchStorage.save().then()` without `.catch()` handlers, so failures were silently ignored.
+**Fix:** Added `.catch()` handlers to all game screen finalizeMatch functions that log the error and proceed with navigation regardless. Ensures the app doesn't get stuck even if storage fails.
+**Affected Screens:** X01, Cricket, Killer, Practice170, AroundTheClock, Bobs27, Shanghai
+**Status:** ✅ Fixed
+
 ## Verification Results
 
 ### Visual Overhaul (Fable 5) Safety Check
