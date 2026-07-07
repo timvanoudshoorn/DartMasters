@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { Icon } from '../../components/icons/Icon';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
@@ -13,6 +14,7 @@ import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
+import { STAGGER_MS } from '../../theme/motion';
 import { Bobs27PlayerState, GameConfig, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
@@ -140,19 +142,28 @@ export function Bobs27GameScreen({ config }: Props) {
           <Text style={styles.title}>BOB'S 27</Text>
         </View>
         <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dartDot, i < dartsThisTurn && styles.dartDotFilled]} />
-          ))}
+          {[0, 1, 2].map((i) =>
+            i < dartsThisTurn ? (
+              <Animated.View
+                key={i}
+                entering={ZoomIn.springify().damping(11).stiffness(240)}
+                style={[styles.dartDot, styles.dartDotFilled]}
+              />
+            ) : (
+              <View key={i} style={styles.dartDot} />
+            )
+          )}
         </View>
       </View>
 
       <View style={styles.scoresRow}>
-        {bobsPlayers.map((bp) => {
+        {bobsPlayers.map((bp, i) => {
           const p = resolvePlayerDisplay(bp.playerId, playerMap, config.guestPlayers);
           const isActive = bp.playerId === activePlayerId;
           return (
-            <View
+            <Animated.View
               key={bp.playerId}
+              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
               style={[styles.scoreCard, isActive && styles.scoreCardActive, bp.finished && styles.finishedCard]}
             >
               <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={24} active={isActive} />
@@ -164,16 +175,16 @@ export function Bobs27GameScreen({ config }: Props) {
                   { color: bp.score < 0 ? colors.neonRed : isActive ? colors.textPrimary : colors.textDim },
                 ]}
               />
-            </View>
+            </Animated.View>
           );
         })}
       </View>
 
-      <View style={styles.spotlight}>
+      <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(280)} style={styles.spotlight}>
         <Text style={styles.spotlightLabel}>{display.name.toUpperCase()} — ROUND {activeBobs.round} / {BOBS27_ROUNDS}</Text>
         <Text style={[styles.spotlightTarget, { color: colors.primaryHot }]}>D{activeBobs.round}</Text>
         <Text style={styles.hint}>Hit the double or lose {activeBobs.round * 2} points</Text>
-      </View>
+      </Animated.View>
 
       <View style={styles.buttonGrid}>
         <SegmentButton label="HIT DOUBLE" onPress={() => throwDart(true)} size="lg" variant="accent" style={styles.gridBtn} soundTrigger="buttonTap" />

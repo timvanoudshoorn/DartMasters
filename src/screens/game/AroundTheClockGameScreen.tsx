@@ -2,7 +2,13 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  ZoomIn,
+} from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { Icon } from '../../components/icons/Icon';
@@ -22,6 +28,7 @@ import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
+import { STAGGER_MS } from '../../theme/motion';
 import { ATC_SEQUENCE, AtcPlayerState, GameConfig, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
@@ -198,18 +205,30 @@ export function AroundTheClockGameScreen({ config }: Props) {
           <Text style={styles.legLabel}>GAME {gameNumber}</Text>
         </View>
         <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dartDot, i < dartsThisTurn && styles.dartDotFilled]} />
-          ))}
+          {[0, 1, 2].map((i) =>
+            i < dartsThisTurn ? (
+              <Animated.View
+                key={i}
+                entering={ZoomIn.springify().damping(11).stiffness(240)}
+                style={[styles.dartDot, styles.dartDotFilled]}
+              />
+            ) : (
+              <View key={i} style={styles.dartDot} />
+            )
+          )}
         </View>
       </View>
 
       <View style={styles.tracksContainer}>
-        {atcPlayers.map((p) => {
+        {atcPlayers.map((p, i) => {
           const display = resolvePlayerDisplay(p.playerId, playerMap, config.guestPlayers);
           const isActive = p.playerId === activePlayerId;
           return (
-            <View key={p.playerId} style={styles.trackRow}>
+            <Animated.View
+              key={p.playerId}
+              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+              style={styles.trackRow}
+            >
               <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={26} active={isActive} />
               <View style={styles.track}>
                 <TrackFill
@@ -220,12 +239,15 @@ export function AroundTheClockGameScreen({ config }: Props) {
               <Text style={[styles.trackLabel, isActive && { color: colors.primaryHot }]}>
                 {currentAtcTarget(p) === 25 ? `B ${atcBullProgress(p)?.hits ?? 0}/2` : currentAtcTarget(p)}
               </Text>
-            </View>
+            </Animated.View>
           );
         })}
       </View>
 
-      <View style={styles.spotlight}>
+      <Animated.View
+        entering={FadeInDown.delay(atcPlayers.length * STAGGER_MS).duration(280)}
+        style={styles.spotlight}
+      >
         <Text style={styles.spotlightLabel}>{activeDisplay.name.toUpperCase()}'S TARGET</Text>
         <AnimatedScore
           value={atBull ? (bullHits > 0 ? `BULL ${bullHits}/2` : 'BULL') : target}
@@ -235,7 +257,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
             atBull && bullHits > 0 ? styles.spotlightTargetSmall : null,
           ]}
         />
-      </View>
+      </Animated.View>
 
       {botThinking && <BotThinkingBadge />}
 
