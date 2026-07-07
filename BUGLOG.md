@@ -38,11 +38,12 @@
 **Affected Screens:** X01GameScreen, Practice170GameScreen
 **Status:** ✅ Fixed
 
-### 6. Missing Error Handling for HomeScreen Data Loading
-**Commit:** `0505bbe`
-**Issue:** If PlayerStorage.getAll(), MatchStorage.getAll(), or ActiveMatchStorage.get() fail, HomeScreen would not load any data, appearing blank to the user.
-**Root Cause:** Promise.all() had no .catch() handler, so if any storage operation failed, the entire Promise would reject silently and state would remain empty.
-**Fix:** Added .catch() handlers to both Promise.all() and computeDailyChallengeReport() to explicitly set state to empty values when errors occur.
+### 6. Missing Error Handling for Data Loading Screens
+**Commits:** `0505bbe` (HomeScreen), `bca0de1` (GameSummary, PlayersList, Stats)
+**Issue:** Multiple screens loading storage data via Promise.all() with no error handling. If any operation fails, data remains uninitialized and screen appears blank.
+**Root Cause:** Storage operations had no .catch() handlers, so Promise rejections were silently ignored and state remained in initial empty state.
+**Affected Screens:** HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen
+**Fix:** Added .catch() handlers to all Promise.all() operations to explicitly set state to empty values when errors occur.
 **Status:** ✅ Fixed
 
 ## Verification Results
