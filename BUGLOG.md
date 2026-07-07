@@ -30,6 +30,21 @@
 **Affected Screens:** X01, Cricket, Killer, Practice170, AroundTheClock, Bobs27, Shanghai
 **Status:** ✅ Fixed
 
+### 5. Uncleared Pending Timeouts on Component Unmount
+**Commit:** `86d8d14`
+**Issue:** When user navigates away during a bust display timeout, setState calls execute on unmounted component causing React warning: "Can't perform a React state update on an unmounted component."
+**Root Cause:** X01GameScreen and Practice170GameScreen had setTimeout calls in tapDart handler with no cleanup mechanism. If component unmounts before timeout completes, the callback still executes.
+**Fix:** Added pendingTimeoutsRef and scheduleTimeout helper that tracks all pending timeouts. Cleanup useEffect clears all timeouts when component unmounts.
+**Affected Screens:** X01GameScreen, Practice170GameScreen
+**Status:** ✅ Fixed
+
+### 6. Missing Error Handling for HomeScreen Data Loading
+**Commit:** `0505bbe`
+**Issue:** If PlayerStorage.getAll(), MatchStorage.getAll(), or ActiveMatchStorage.get() fail, HomeScreen would not load any data, appearing blank to the user.
+**Root Cause:** Promise.all() had no .catch() handler, so if any storage operation failed, the entire Promise would reject silently and state would remain empty.
+**Fix:** Added .catch() handlers to both Promise.all() and computeDailyChallengeReport() to explicitly set state to empty values when errors occur.
+**Status:** ✅ Fixed
+
 ## Verification Results
 
 ### Visual Overhaul (Fable 5) Safety Check
