@@ -68,3 +68,31 @@ complete, no gaps found:
 Went looking for any other incomplete systems and found none — the
 codebase's game logic is in solid shape. Stopping here rather than
 inventing busywork, per instructions.
+
+## Session 2026-07-07 (cont.)
+
+Checked BUGLOG.md, VISUAL_LOG.md, AUDIO_LOG.md (each in the other
+agents' own worktrees) for `@features:` tags — none found. Nothing to
+pick up from other agents this session.
+
+Freshly re-verified the whole backlog against current code (camera tilt
+guidance + prompt still intact, Bull Off N-1 logic still correct,
+`npx tsc --noEmit` still clean), then did a second, deeper pass over
+systems not read closely last session:
+- `stats.ts` (`computeX01PlayerResult`, `aggregateCareerStats`,
+  `computeWinStreak`) — correct, including multi-player `legsPlayed`
+  aggregation.
+- `bot.ts` — every bot-supported mode (X01, Cricket, Around the Clock,
+  Killer, Shanghai) has a working decision function. Bob's 27 and
+  Practice170 have none, but that's intentional:
+  `GameSetupScreen.tsx`'s `BOT_UNSUPPORTED_MODES` excludes both from
+  bot play at setup time, so there's no dangling bot-less game state.
+- `checkoutTable.ts` — standard double-out suggestions, impossible
+  finishes correctly excluded (169/168/166/165/163/162/159).
+- `storage/activeMatch.ts` + its `GameScreen.tsx`/`HomeScreen.tsx`
+  wiring — crash/interrupt detection and resume-into-same-config both
+  wired correctly; it only persists config, not turn-by-turn state,
+  which is a deliberate scope choice, not a gap.
+
+No further gaps found. Nothing outstanding — stopping here rather than
+manufacturing more work.
