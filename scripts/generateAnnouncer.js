@@ -1,4 +1,4 @@
-// Generates 180 individual announcer clips via Higgsfield API (text2speech_v2 + elevenlabs + Harrison voice).
+﻿// Generates 180 individual announcer clips via Higgsfield API (text2speech_v2 + elevanlabs + Harrison voice).
 // Saves to assets/sounds/announcer/ and updates downloadAnnouncer.js with the URLs.
 // Run with: node scripts/generateAnnouncer.js [--dry-run]
 // Requires: HIGGSFIELD_API_KEY env var
@@ -9,7 +9,7 @@ const path = require('path');
 const OUT_DIR = path.join(__dirname, '..', 'assets', 'sounds', 'announcer');
 const HARRISON_VOICE_ID = '573e5163-59b3-4926-aab1-951ef2985f81';
 const MODEL = 'text2speech_v2';
-const VARIANT = 'elevenlabs';
+const VARIANT = 'elevanlabs';
 
 // Number-to-words conversion for announcer prompts (ALL CAPS with exclamation mark).
 function scoreToText(n) {
