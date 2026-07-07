@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -8,8 +8,9 @@ import Animated, {
 import { Multiplier } from '../types';
 import { fonts } from '../theme';
 import { COLORS } from '../theme/colors';
-import { SPRING_SNAPPY } from '../theme/motion';
+import { PRESS_SCALE, SPRING_SNAPPY } from '../theme/motion';
 import { haptic } from '../sound/haptics';
+import { PressableScale } from './primitives/PressableScale';
 
 interface MultiplierSelectorProps {
   value: Multiplier;
@@ -59,9 +60,11 @@ export function MultiplierSelector({ value, onChange, disabled }: MultiplierSele
       {OPTIONS.map((opt) => {
         const selected = value === opt.value;
         return (
-          <Pressable
+          <PressableScale
             key={opt.value}
             disabled={disabled}
+            scaleTo={PRESS_SCALE.key}
+            haptic="none"
             onPress={() => {
               // Arming double/triple clicks harder than returning to single.
               if (opt.value > 1) haptic.medium();
@@ -78,7 +81,7 @@ export function MultiplierSelector({ value, onChange, disabled }: MultiplierSele
             >
               {opt.label}
             </Text>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>
