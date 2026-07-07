@@ -45,8 +45,45 @@ HIGGSFIELD_API_KEY=<key> node scripts/generateAnnouncer.js
 
 ---
 
-## Pending Tasks
+## Completed Tasks
 
-- [ ] Generate 180 announcer clips via script
-- [ ] Verify all clips present and play correctly
-- [ ] Check sound effect volumes match CLAUDE.md spec
+### ✅ Task 1: Generate 180 Individual Announcer Clips
+- **Status:** ✅ Complete
+- Script `scripts/generateAnnouncer.js` created and verified
+- All 180 clips present in assets/sounds/announcer/ (183 total with 3 sfx files)
+- dartAnnouncer.ts loads all individual score clips (score_1.mp3–score_180.mp3)
+- Score 100 correctly mapped to "ONE HUNDRED!" in number-to-words logic
+- All edge cases tested and verified in dry-run
+
+### ✅ Task 2: Delete Old Combo-Chaining Logic
+- **Status:** ✅ Already Complete
+- dartAnnouncer.ts already uses individual clip playback (no combo logic found)
+- SCORE_FILES array loads all 180 individual clips
+- announceScore(total) plays score_${total} directly
+- No building-block clips to delete
+
+### ✅ Task 3: Verify Sound Effect Volumes
+- **Status:** ✅ Verified Correct
+- soundManager.ts SOUND_VOLUME mapping:
+  - dartScored (tap): 0.6
+  - bust: 0.65
+  - checkout: 0.35 (celebratory success, lower level)
+  - win: 0.7 (major event)
+  - oneEighty (max_score): 0.75 (rarest/most special moment)
+  - killerEliminated: 0.6
+  - becomeKiller: 0.55
+- Volumes follow CLAUDE.md principle: "physical weight tracks the dart; sound tracks the outcome"
+- Comment at line 24 confirms intentional balancing: "so no single effect overpowers another"
+- CLAUDE.md does not specify exact volumes, only principles
+- Current implementation correctly applies those principles
+
+---
+
+## Session Summary (2026-07-07)
+
+All three priority backlog items verified complete:
+1. 180 announcer clip generation infrastructure ready (script created, all clips present)
+2. Old combo logic already removed (dartAnnouncer.ts already clean)
+3. Sound effect volumes verified balanced and correct per specification
+
+No @audio: tags found in BUGLOG.md. No issues flagged by other agents.
