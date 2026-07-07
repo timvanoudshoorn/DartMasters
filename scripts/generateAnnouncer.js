@@ -18,13 +18,16 @@ function scoreToText(n) {
   const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
 
   if (n === 100) return 'ONE HUNDRED!';
-  if (n >= 101 && n <= 109) return `ONE HUNDRED ${scoreToText(n - 100)}`;
-  if (n >= 110 && n <= 119) return `ONE HUNDRED ${scoreToText(n - 100)}`;
+  if (n >= 101 && n <= 119) {
+    const sub = n - 100;
+    if (sub < 10) return `ONE HUNDRED ${ones[sub]}!`;
+    return `ONE HUNDRED ${teens[sub - 10]}!`;
+  }
   if (n >= 120 && n <= 180) {
     const rem = n % 10;
-    const tens_digit = Math.floor(n / 10);
-    if (rem === 0) return `${tens[tens_digit]}!`;
-    return `${tens[tens_digit]} ${ones[rem]}!`;
+    const tens_digit = Math.floor((n - 100) / 10);
+    if (rem === 0) return `ONE HUNDRED ${tens[tens_digit]}!`;
+    return `ONE HUNDRED ${tens[tens_digit]} ${ones[rem]}!`;
   }
 
   if (n < 10) return `${ones[n]}!`;

@@ -165,6 +165,28 @@ export function CameraScoringScreen() {
   const [manualDarts, setManualDarts] = useState<Dart[]>([]);
   const [manualMultiplier, setManualMultiplier] = useState<Multiplier>(1);
 
+  const [tiltDeg, setTiltDeg] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!permission?.granted) return;
+    DeviceMotion.setUpdateInterval(300);
+    const sub = DeviceMotion.addListener((measurement: DeviceMotionMeasurement) => {
+      const beta = measurement.rotation?.beta;
+      if (typeof beta !== 'number') return;
+      setTiltDeg(Math.abs(beta * (180 / Math.PI)));
+    });
+    return () => sub.remove();
+  }, [permission?.granted]);
+
+  const tiltGuidance: { label: string; ok: boolean } | null =
+    tiltDeg === null
+      ? null
+      : tiltDeg <= TILT_GOOD_DEG
+      ? { label: 'Good angle — hold steady', ok: true }
+      : tiltDeg <= TILT_WARN_DEG
+      ? { label: 'Level the phone with the board for better accuracy', ok: false }
+      : { label: 'Too steep — mount level with the board center', ok: false };
+
   const detectDarts = async () => {
     if (!cameraRef.current) return;
     busyRef.current = true;
@@ -512,6 +534,9 @@ export function CameraScoringScreen() {
               ? 'Ready — throw your darts'
               : 'Point camera at dartboard'}
           </Text>
+          {tiltGuidance && (
+            <Text style={[styles.statusText, !tiltGuidance.ok && styles.tiltWarnText]}>{tiltGuidance.label}</Text>
+          )}
         </View>
       )}
 
@@ -769,6 +794,10 @@ const styles = StyleSheet.create({
     fontFamily: FONT.regular,
     fontSize: 14,
     textAlign: 'center',
+  },
+  tiltWarnText: {
+    color: COLORS.accent,
+    marginTop: 4,
   },
   errorText: {
     color: COLORS.bust,
