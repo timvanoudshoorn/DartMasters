@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { Icon } from '../../components/icons/Icon';
 import { LifeDots } from '../../components/LifeDots';
@@ -22,6 +23,7 @@ import { RootStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
+import { STAGGER_MS } from '../../theme/motion';
 import { GameConfig, KillerPlayerState, MatchRecord, Multiplier, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { PlayerDisplay, resolvePlayerDisplay } from '../../utils/playerDisplay';
@@ -301,18 +303,22 @@ export function KillerGameScreen({ config }: Props) {
         {botThinking && <BotThinkingBadge />}
 
         <View style={styles.claimedRow}>
-          {config.playerIds.map((id) => {
+          {config.playerIds.map((id, i) => {
             const kp = killerPlayers.find((p) => p.playerId === id)!;
             const claimed = kp.number !== 0;
             return (
-              <View key={id} style={[styles.claimedChip, claimed && { borderColor: display(id).color }]}>
+              <Animated.View
+                key={id}
+                entering={FadeInDown.delay(i * STAGGER_MS).duration(240)}
+                style={[styles.claimedChip, claimed && { borderColor: display(id).color }]}
+              >
                 <Text style={styles.claimedChipName} numberOfLines={1}>
                   {display(id).name}
                 </Text>
                 <Text style={[styles.claimedChipNumber, claimed && { color: display(id).color }]}>
                   {claimed ? `#${kp.number}` : '—'}
                 </Text>
-              </View>
+              </Animated.View>
             );
           })}
         </View>
@@ -396,9 +402,17 @@ export function KillerGameScreen({ config }: Props) {
           <Text style={styles.title}>KILLER</Text>
         </View>
         <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dartDot, i < dartsThisTurn && styles.dartDotFilled]} />
-          ))}
+          {[0, 1, 2].map((i) =>
+            i < dartsThisTurn ? (
+              <Animated.View
+                key={i}
+                entering={ZoomIn.springify().damping(11).stiffness(240)}
+                style={[styles.dartDot, styles.dartDotFilled]}
+              />
+            ) : (
+              <View key={i} style={styles.dartDot} />
+            )
+          )}
         </View>
       </View>
       <PhaseBanner phase="play" isKillerNow={!!activeKiller.isKiller} />
@@ -415,18 +429,21 @@ export function KillerGameScreen({ config }: Props) {
       {botThinking && <BotThinkingBadge />}
 
       <View style={styles.playersGrid}>
-        {killerPlayers.map((kp) => {
+        {killerPlayers.map((kp, i) => {
           const d = display(kp.playerId);
           const isActive = kp.playerId === activePlayerId;
           return (
-            <PressableScale
+            <Animated.View
               key={kp.playerId}
-              disabled={kp.eliminated || isBot(activePlayerId)}
-              onPress={() => throwAt(kp.playerId)}
-              haptic="none"
-              scaleTo={0.94}
+              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
               style={{ width: '47%', flexGrow: 1 }}
             >
+              <PressableScale
+                disabled={kp.eliminated || isBot(activePlayerId)}
+                onPress={() => throwAt(kp.playerId)}
+                haptic="none"
+                scaleTo={0.94}
+              >
               <View
                 style={[
                   styles.playerTile,
@@ -445,7 +462,8 @@ export function KillerGameScreen({ config }: Props) {
                 {kp.isKiller && !kp.eliminated && <Text style={styles.killerBadge}>KILLER</Text>}
                 {kp.eliminated && <Text style={styles.eliminatedText}>OUT</Text>}
               </View>
-            </PressableScale>
+              </PressableScale>
+            </Animated.View>
           );
         })}
       </View>

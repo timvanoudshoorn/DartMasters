@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { CricketMark } from '../../components/CricketMark';
@@ -244,9 +244,17 @@ export function CricketGameScreen({ config }: Props) {
           </Text>
         </View>
         <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dartDot, i < dartsThisTurn && styles.dartDotFilled]} />
-          ))}
+          {[0, 1, 2].map((i) =>
+            i < dartsThisTurn ? (
+              <Animated.View
+                key={i}
+                entering={ZoomIn.springify().damping(11).stiffness(240)}
+                style={[styles.dartDot, styles.dartDotFilled]}
+              />
+            ) : (
+              <View key={i} style={styles.dartDot} />
+            )
+          )}
         </View>
       </View>
 
