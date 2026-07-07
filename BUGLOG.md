@@ -39,10 +39,10 @@
 **Status:** ✅ Fixed
 
 ### 6. Missing Error Handling for Data Loading Screens
-**Commits:** `0505bbe` (HomeScreen), `bca0de1` (GameSummary, PlayersList, Stats)
+**Commits:** `0505bbe`, `bca0de1`, `ce7347e`
 **Issue:** Multiple screens loading storage data via Promise.all() with no error handling. If any operation fails, data remains uninitialized and screen appears blank.
 **Root Cause:** Storage operations had no .catch() handlers, so Promise rejections were silently ignored and state remained in initial empty state.
-**Affected Screens:** HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen
+**Affected Screens:** HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen, LeaderboardScreen, MatchDetailScreen, PlayerProfileScreen
 **Fix:** Added .catch() handlers to all Promise.all() operations to explicitly set state to empty values when errors occur.
 **Status:** ✅ Fixed
 
