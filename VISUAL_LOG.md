@@ -99,3 +99,30 @@ the mount-stagger and micro-pop conventions used everywhere else
 (Shanghai/Bobs27/AroundTheClock/Killer dart dots and score cards,
 PlayerProfileScreen, SettingsScreen). No game logic, scoring math, or
 camera/detection code was touched.
+
+## Follow-up session — cross-log check + closing sweep
+Checked `BUGLOG.md` (bugfix-sweep/audio-pipeline/audio-pipeline-work),
+`FEATURE_LOG.md` (feature-build), and `AUDIO_LOG.md` (bugfix-sweep) on
+every branch that has them for anything tagged `@visual:` — found none.
+`bugfix-sweep`'s own BUGLOG already independently verified the visual
+overhaul touched no game logic or camera code, matching this log's
+hard-rule compliance.
+
+Re-verified `visual-upgrade-v2` hasn't moved since branching (still at
+`bdd25cd`), so nothing upstream to rebase onto. Ran a final grep sweep
+across every screen/component for the remaining violation classes: bare
+`Pressable` (only the two known-legitimate exceptions — `Sheet`'s modal
+scrim, `SwitchRow`'s own thumb — remain), emoji outside
+`CameraScoringScreen`, `expo-linear-gradient` usage, Android
+`elevation`, and stock RN `Switch`. All clean. Spot-checked
+`QuickAddPlayerSheet` and `Sheet` (both route through `Button`/
+`PressableScale` correctly and already have full spring/fade
+choreography) — no changes needed.
+
+No new work found. All 10 screens have had a full pass; nothing
+outstanding from other agents. Session closed here rather than
+manufacturing busywork.
+
+**@bugs:** none found this session.
+**@features:** none found this session.
+**@audio:** none found this session.
