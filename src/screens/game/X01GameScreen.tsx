@@ -212,9 +212,14 @@ export function X01GameScreen({ config }: Props) {
       botPlayerIds: botPlayerIds(config),
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => {
-      navigation.replace('GameSummary', { matchId: record.id });
-    });
+    MatchStorage.save(record)
+      .then(() => {
+        navigation.replace('GameSummary', { matchId: record.id });
+      })
+      .catch((err) => {
+        console.error('[X01GameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
   const startNextTurn = (s: MatchState, nextTurnIndex: number, openedFor: string) => {

@@ -75,7 +75,12 @@ export function Practice170GameScreen({ config }: Props) {
   const { shakeStyle, triggerShake } = useShake();
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[Practice170GameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   React.useEffect(() => {

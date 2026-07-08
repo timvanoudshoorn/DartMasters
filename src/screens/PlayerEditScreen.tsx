@@ -47,16 +47,20 @@ export function PlayerEditScreen() {
 
   useEffect(() => {
     if (editingId) {
-      PlayerStorage.getAll().then((players) => {
-        const p = players.find((x) => x.id === editingId);
-        if (p) {
-          setName(p.name);
-          setColor(p.color);
-          setAvatar(p.avatar);
-          setPhotoUri(p.photoUri);
-          setCreatedAt(p.createdAt);
-        }
-      });
+      PlayerStorage.getAll()
+        .then((players) => {
+          const p = players.find((x) => x.id === editingId);
+          if (p) {
+            setName(p.name);
+            setColor(p.color);
+            setAvatar(p.avatar);
+            setPhotoUri(p.photoUri);
+            setCreatedAt(p.createdAt);
+          }
+        })
+        .catch((err) => {
+          console.error('[PlayerEditScreen] Failed to load player:', err);
+        });
     }
   }, [editingId]);
 

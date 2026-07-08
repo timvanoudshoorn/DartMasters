@@ -22,8 +22,17 @@ export function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      SettingsStorage.get().then(setSettings);
-      PlayerStorage.getAll().then(setPlayers);
+      SettingsStorage.get()
+        .then(setSettings)
+        .catch((err) => {
+          console.error('[SettingsScreen] Failed to load settings:', err);
+        });
+      PlayerStorage.getAll()
+        .then(setPlayers)
+        .catch((err) => {
+          console.error('[SettingsScreen] Failed to load players:', err);
+          setPlayers([]);
+        });
     }, [])
   );
 
