@@ -26,7 +26,7 @@ import { spacing } from '../../theme';
 import { COLORS, FONT } from '../../theme/colors';
 import { PRESS_SCALE } from '../../theme/motion';
 import { Dart, GameConfig, MatchRecord, Multiplier, Player, X01PlayerState } from '../../types';
-import { announceGameOn, announceGameShot, announceScore } from '../../utils/dartAnnouncer';
+import { announceGameOn, announceGameShot, announceScore, cancelAnnouncements } from '../../utils/dartAnnouncer';
 import { generateId } from '../../utils/id';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
@@ -101,6 +101,7 @@ export function X01GameScreen({ config }: Props) {
   const dartQueueRef = useRef<Dart[]>([]);
   const queueOwnerRef = useRef<string | null>(null);
   const [queueTick, setQueueTick] = useState(0);
+  const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   React.useEffect(() => {
     PlayerStorage.getAll().then(setPlayers);
@@ -109,6 +110,22 @@ export function X01GameScreen({ config }: Props) {
   React.useEffect(() => {
     announceGameOn();
   }, []);
+
+  React.useEffect(() => {
+    return () => {
+      pendingTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      pendingTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  const scheduleTimeout = (callback: () => void, delay: number) => {
+    const timeout = setTimeout(() => {
+      pendingTimeoutsRef.current.delete(timeout);
+      callback();
+    }, delay);
+    pendingTimeoutsRef.current.add(timeout);
+    return timeout;
+  };
 
   const playerMap = useMemo(() => {
     const map: Record<string, Player> = {};
@@ -229,7 +246,8 @@ export function X01GameScreen({ config }: Props) {
       return;
     }
 
-    // Leg won
+    // Leg won — cancel any pending announcements before playing game shot
+    cancelAnnouncements();
     announceGameShot();
     const checkoutScore = visit.scored;
     const winnerLegDarts = legDarts[activePlayer.playerId];
@@ -309,7 +327,7 @@ export function X01GameScreen({ config }: Props) {
       setBustFlash(true);
       triggerShake();
       setVisitDarts(newDarts);
-      setTimeout(() => {
+      scheduleTimeout(() => {
         setBustFlash(false);
         finishVisit(newDarts, activePlayer.remaining, true, false, liveOpened);
       }, BUST_DISPLAY_MS);

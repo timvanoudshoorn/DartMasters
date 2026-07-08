@@ -287,3 +287,12 @@ export function announceGameOn(): void {
 export function announceGameShot(): void {
   playClip('game_shot');
 }
+
+export function cancelAnnouncements(): void {
+  sequenceToken++;
+  if (currentSound) {
+    currentSound.setOnPlaybackStatusUpdate(null);
+    currentSound.stopAsync().catch(() => {});
+    currentSound = null;
+  }
+}

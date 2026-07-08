@@ -98,7 +98,12 @@ export function Bobs27GameScreen({ config }: Props) {
         : undefined,
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => navigation.replace('GameSummary', { matchId: record.id }));
+    MatchStorage.save(record)
+      .then(() => navigation.replace('GameSummary', { matchId: record.id }))
+      .catch((err) => {
+        console.error('[Bobs27GameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
   const throwDart = (hit: boolean) => {

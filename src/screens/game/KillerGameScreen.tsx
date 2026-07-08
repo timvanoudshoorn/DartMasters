@@ -146,7 +146,12 @@ export function KillerGameScreen({ config }: Props) {
       killerEverPlayerIds: finalEverKillerIds,
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => navigation.replace('GameSummary', { matchId: record.id }));
+    MatchStorage.save(record)
+      .then(() => navigation.replace('GameSummary', { matchId: record.id }))
+      .catch((err) => {
+        console.error('[KillerGameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
   // ---------- Phase 1: claim your number ----------

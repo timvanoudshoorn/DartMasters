@@ -70,12 +70,29 @@ export function Practice170GameScreen({ config }: Props) {
   const [liveRemaining, setLiveRemaining] = useState(TARGET);
   const [bustFlash, setBustFlash] = useState(false);
   const history = useRef<{ state: MatchState; visitDarts: Dart[]; liveRemaining: number }[]>([]);
+  const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const playSfx = useSoundEffects();
   const { shakeStyle, triggerShake } = useShake();
 
   React.useEffect(() => {
     PlayerStorage.getAll().then(setPlayers);
   }, []);
+
+  React.useEffect(() => {
+    return () => {
+      pendingTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      pendingTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  const scheduleTimeout = (callback: () => void, delay: number) => {
+    const timeout = setTimeout(() => {
+      pendingTimeoutsRef.current.delete(timeout);
+      callback();
+    }, delay);
+    pendingTimeoutsRef.current.add(timeout);
+    return timeout;
+  };
 
   const playerMap = useMemo(() => {
     const map: Record<string, Player> = {};
@@ -134,7 +151,12 @@ export function Practice170GameScreen({ config }: Props) {
       results,
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => navigation.replace('GameSummary', { matchId: record.id }));
+    MatchStorage.save(record)
+      .then(() => navigation.replace('GameSummary', { matchId: record.id }))
+      .catch((err) => {
+        console.error('[Practice170GameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
   const startNextTurn = (s: MatchState, nextTurnIndex: number) => {
@@ -196,9 +218,9 @@ export function Practice170GameScreen({ config }: Props) {
       playSfx('bust');
       setBustFlash(true);
       triggerShake();
-      setTimeout(() => setBustFlash(false), 700);
+      scheduleTimeout(() => setBustFlash(false), 700);
       setVisitDarts(newDarts);
-      setTimeout(() => finishVisit(newDarts, state.sharedRemaining, true, false), 550);
+      scheduleTimeout(() => finishVisit(newDarts, state.sharedRemaining, true, false), 550);
       return;
     }
     if (outcome.checkout) {

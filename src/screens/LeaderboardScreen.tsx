@@ -139,10 +139,16 @@ export function LeaderboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll()]).then(([p, m]) => {
-        setPlayers(p);
-        setMatches(m);
-      });
+      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll()])
+        .then(([p, m]) => {
+          setPlayers(p);
+          setMatches(m);
+        })
+        .catch((err) => {
+          console.error('[LeaderboardScreen] Failed to load data:', err);
+          setPlayers([]);
+          setMatches([]);
+        });
     }, [])
   );
 

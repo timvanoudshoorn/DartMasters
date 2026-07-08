@@ -124,7 +124,12 @@ export function AroundTheClockGameScreen({ config }: Props) {
         : undefined,
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => navigation.replace('GameSummary', { matchId: record.id }));
+    MatchStorage.save(record)
+      .then(() => navigation.replace('GameSummary', { matchId: record.id }))
+      .catch((err) => {
+        console.error('[AroundTheClockGameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
   const throwDart = (type: AtcThrow) => {

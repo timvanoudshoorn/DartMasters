@@ -24,12 +24,18 @@ export function MatchDetailScreen() {
   const [players, setPlayers] = useState<Record<string, Player>>({});
 
   useEffect(() => {
-    Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()]).then(([matches, all]) => {
-      setMatch(matches.find((m) => m.id === route.params.matchId) ?? null);
-      const map: Record<string, Player> = {};
-      all.forEach((p) => (map[p.id] = p));
-      setPlayers(map);
-    });
+    Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])
+      .then(([matches, all]) => {
+        setMatch(matches.find((m) => m.id === route.params.matchId) ?? null);
+        const map: Record<string, Player> = {};
+        all.forEach((p) => (map[p.id] = p));
+        setPlayers(map);
+      })
+      .catch((err) => {
+        console.error('[MatchDetailScreen] Failed to load data:', err);
+        setMatch(null);
+        setPlayers({});
+      });
   }, [route.params.matchId]);
 
   if (!match) return <Screen />;

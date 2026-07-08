@@ -26,13 +26,20 @@ export function StatsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()]).then(([m, p]) => {
-        setMatches(m);
-        setPlayerList(p);
-        const map: Record<string, Player> = {};
-        p.forEach((pl) => (map[pl.id] = pl));
-        setPlayers(map);
-      });
+      Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])
+        .then(([m, p]) => {
+          setMatches(m);
+          setPlayerList(p);
+          const map: Record<string, Player> = {};
+          p.forEach((pl) => (map[pl.id] = pl));
+          setPlayers(map);
+        })
+        .catch((err) => {
+          console.error('[StatsScreen] Failed to load data:', err);
+          setMatches([]);
+          setPlayerList([]);
+          setPlayers({});
+        });
     }, [])
   );
 
