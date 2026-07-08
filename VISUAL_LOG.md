@@ -126,3 +126,41 @@ manufacturing busywork.
 **@bugs:** none found this session.
 **@features:** none found this session.
 **@audio:** none found this session.
+
+## Follow-up session 2 — main merge check + two screens found off the original list
+`main` has since absorbed `bugfix-sweep`, `audio-pipeline`, `feature-build`,
+and `visual-polish` via merge commits. Diffed `visual-polish` against
+`main` to see what else landed: all non-visual-polish changes are
+backend error-handling (`.catch()` on storage calls) and one small
+`MountReveal` unmount-cleanup fix — no new UI, no conflicts with this
+branch's work, nothing requiring a visual follow-up.
+
+Re-checked every branch's `BUGLOG.md`/`FEATURE_LOG.md`/`AUDIO_LOG.md`
+for `@visual:` tags again — still none.
+
+Cross-referenced every route in `navigation/types.ts` against screens
+actually reviewed and found two that were missed from the original
+10-screen list: **LeaderboardScreen** and **MatchDetailScreen** (both
+reachable from Home/Stats but not named in the original brief).
+
+### Leaderboard
+Had zero entrance animation — rows just appeared instantly, unlike
+every other ranked/list screen (Stats, Players, Challenges). Added
+staggered `FadeInDown` on rows (keyed by category+period+player so
+switching tabs re-triggers the reveal, reinforcing "new board"), and
+`ZoomIn` pop on the top-3 gold/silver/bronze rank badges to match the
+weight X01's leg dots and Challenges' checkmarks already give
+completion states. Category chips, period toggle, and empty state were
+already correct (`PressableScale`, real icons).
+
+### Match Detail
+Also had zero entrance animation and an un-staggered delete button.
+Added `FadeInDown` stagger to player cards and a delayed `FadeInUp` on
+the delete button, matching the win screen's action-button convention.
+
+Both type-check clean and committed. Confirmed every route in
+`navigation/types.ts` now maps to a reviewed screen — no more gaps.
+
+**@bugs:** none found this session.
+**@features:** none found this session.
+**@audio:** none found this session.
