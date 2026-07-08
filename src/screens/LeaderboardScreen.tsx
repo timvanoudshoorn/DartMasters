@@ -1,6 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
@@ -10,6 +11,7 @@ import { Screen } from '../components/Screen';
 import { aggregateCareerStats } from '../logic/stats';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
+import { STAGGER_MS } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
 const X01_TYPES: GameType[] = ['501', '301', '201', 'practice170'];
@@ -207,10 +209,23 @@ export function LeaderboardScreen() {
             const isYou = row.player.id === primaryPlayerId;
             const rankColor = RANK_COLORS[i];
             return (
-              <View key={row.player.id} style={[styles.row, isYou && styles.rowYou]}>
-                <View style={[styles.rankBadge, rankColor && { backgroundColor: rankColor }]}>
-                  <Text style={[styles.rankText, rankColor && styles.rankTextTop]}>{i + 1}</Text>
-                </View>
+              <Animated.View
+                key={`${category}-${period}-${row.player.id}`}
+                entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+                style={[styles.row, isYou && styles.rowYou]}
+              >
+                {rankColor ? (
+                  <Animated.View
+                    entering={ZoomIn.delay(Math.min(i, 8) * STAGGER_MS + 100).springify().damping(11)}
+                    style={[styles.rankBadge, { backgroundColor: rankColor }]}
+                  >
+                    <Text style={[styles.rankText, styles.rankTextTop]}>{i + 1}</Text>
+                  </Animated.View>
+                ) : (
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankText}>{i + 1}</Text>
+                  </View>
+                )}
                 <PlayerAvatar
                   name={row.player.name}
                   color={row.player.color}
@@ -232,7 +247,7 @@ export function LeaderboardScreen() {
                   <Text style={styles.sub}>{row.sub}</Text>
                 </View>
                 <Text style={styles.value}>{row.display}</Text>
-              </View>
+              </Animated.View>
             );
           })}
         </View>
