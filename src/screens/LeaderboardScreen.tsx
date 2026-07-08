@@ -1,15 +1,18 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon, IconName } from '../components/icons/Icon';
 import { PlayerAvatar } from '../components/PlayerAvatar';
+import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { aggregateCareerStats } from '../logic/stats';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
+import { STAGGER_MS } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
 const X01_TYPES: GameType[] = ['501', '301', '201', 'practice170'];
@@ -41,7 +44,6 @@ const PERIODS: { key: Period; label: string }[] = [
 
 interface Row {
   player: Player;
-  display: string;
   sub: string;
   value: number;
 }
@@ -75,7 +77,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: all.winRate,
-            display: `${all.winRate.toFixed(0)}%`,
             sub: `${all.gamesWon}-${all.gamesPlayed - all.gamesWon} record`,
           };
         case 'wins':
@@ -83,7 +84,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: all.gamesWon,
-            display: `${all.gamesWon}`,
             sub: `${all.gamesPlayed} played`,
           };
         case 'avg':
@@ -91,7 +91,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: x01.avgThreeDart,
-            display: x01.avgThreeDart.toFixed(1),
             sub: '3-dart average',
           };
         case 'oneEighties':
@@ -99,7 +98,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: x01.oneEighties,
-            display: `${x01.oneEighties}`,
             sub: '180s thrown',
           };
         case 'checkout':
@@ -107,7 +105,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: x01.highestCheckout,
-            display: `${x01.highestCheckout}`,
             sub: 'best checkout',
           };
         case 'matches':
@@ -115,7 +112,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: all.gamesPlayed,
-            display: `${all.gamesPlayed}`,
             sub: `${all.gamesWon} wins`,
           };
         default:
@@ -129,6 +125,13 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
 }
 
 const RANK_COLORS = ['#E8C84A', '#C7CDD6', '#C98A4F'];
+
+/** Mirrors the `display` formatting in buildRows, for CountUp's in-flight text. */
+function formatRowValue(category: CategoryKey, n: number): string {
+  if (category === 'winRate') return `${n.toFixed(0)}%`;
+  if (category === 'avg') return n.toFixed(1);
+  return `${Math.round(n)}`;
+}
 
 export function LeaderboardScreen() {
   const navigation = useNavigation();
@@ -213,10 +216,23 @@ export function LeaderboardScreen() {
             const isYou = row.player.id === primaryPlayerId;
             const rankColor = RANK_COLORS[i];
             return (
-              <View key={row.player.id} style={[styles.row, isYou && styles.rowYou]}>
-                <View style={[styles.rankBadge, rankColor && { backgroundColor: rankColor }]}>
-                  <Text style={[styles.rankText, rankColor && styles.rankTextTop]}>{i + 1}</Text>
-                </View>
+              <Animated.View
+                key={`${category}-${period}-${row.player.id}`}
+                entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+                style={[styles.row, isYou && styles.rowYou]}
+              >
+                {rankColor ? (
+                  <Animated.View
+                    entering={ZoomIn.delay(Math.min(i, 8) * STAGGER_MS + 100).springify().damping(11)}
+                    style={[styles.rankBadge, { backgroundColor: rankColor }]}
+                  >
+                    <Text style={[styles.rankText, styles.rankTextTop]}>{i + 1}</Text>
+                  </Animated.View>
+                ) : (
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankText}>{i + 1}</Text>
+                  </View>
+                )}
                 <PlayerAvatar
                   name={row.player.name}
                   color={row.player.color}
@@ -237,8 +253,14 @@ export function LeaderboardScreen() {
                   </View>
                   <Text style={styles.sub}>{row.sub}</Text>
                 </View>
-                <Text style={styles.value}>{row.display}</Text>
-              </View>
+                <CountUp
+                  value={row.value}
+                  format={(n) => formatRowValue(category, n)}
+                  delay={Math.min(i, 8) * STAGGER_MS + 150}
+                  duration={600}
+                  style={styles.value}
+                />
+              </Animated.View>
             );
           })}
         </View>
