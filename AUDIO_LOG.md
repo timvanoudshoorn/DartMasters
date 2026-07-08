@@ -77,6 +77,14 @@ HIGGSFIELD_API_KEY=<key> node scripts/generateAnnouncer.js
 - CLAUDE.md does not specify exact volumes, only principles
 - Current implementation correctly applies those principles
 
+### ✅ Bug Fix: Checkout Announcement Overlap (Audio)
+- **Commit:** `dafca3f` / `9aaaaab` (2026-07-07, ported 2026-07-08)
+- **Issue:** Score announcements could overlap with GAME SHOT announcement during checkout
+- **Root Cause:** Code correctly skipped score announcements on checkout, but had no explicit cancellation of pending announcements before playing game shot
+- **Fix:** Added `cancelAnnouncements()` function that increments sequenceToken and stops any currently playing clip
+- **Impact:** Checkout moments now have crisp, non-overlapping announcements
+- **Status:** ✅ Fixed and integrated to audio-pipeline
+
 ### ✅ Bug Fix: Unhandled Promise Rejection in Sound Playback
 - **Commit:** `e18fbee` (2026-07-08)
 - **Issue:** playSound() could throw unhandled promise rejections if playAsync() or setPositionAsync() failed
@@ -94,7 +102,12 @@ All three priority backlog items verified complete:
 2. Old combo logic already removed (dartAnnouncer.ts already clean)
 3. Sound effect volumes verified balanced and correct per specification
 
-Additional bug fixes integrated:
+Critical audio bug fixes integrated:
+- Checkout announcement overlap prevention (cancelAnnouncements function)
 - Sound playback error handling (unhandled promise rejection prevention)
 
-No @audio: tags found in BUGLOG.md initially. New audio bug fix discovered and integrated on 2026-07-08.
+Work log:
+- 2026-07-07: Initial backlog completion and verification
+- 2026-07-08: Discovered missing audio bug fixes on bugfix-sweep, cherry-picked to audio-pipeline
+  - e18fbee: Unhandled promise rejection in playSound()
+  - dafca3f: Checkout announcement overlap (ported as 9aaaaab)
