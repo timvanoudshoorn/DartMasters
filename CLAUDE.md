@@ -63,7 +63,13 @@ contact haptic call `playSound()` directly to avoid double-firing.
   contact, haptic on press-in, optional sound. **A bare `Pressable` in UI
   chrome is a design bug** (the self-contained CameraScoringScreen is the
   one exception).
-- `CountUp` — eased count-up for stat reveals (win screen).
+- `CountUp` — eased count-up for stat reveals (win screen, dashboards).
+- `MountReveal` — launch-safe fade+rise entrance built on **core RN
+  Animated**. **Critical rule:** Reanimated `entering=` Layout Animations
+  hang the app at splash when used on the initial route on native (web
+  silently no-ops them). Anything visible at app start (HomeScreen)
+  must use `MountReveal`; screens mounted after launch may use
+  Reanimated `entering=` freely.
 
 ### Components
 
@@ -76,12 +82,22 @@ toggle — never the RN `Switch`), `OptionRow`/`SegmentButton`/`MultiplierSelect
 (sliding-thumb segmented control; arming double/triple turns the thumb
 ember and clicks harder), `DartSlots`, `CheckoutBanner` (green wash +
 breathing dot), `StatPill`, `EmptyState`, `PlayerAvatar`, `BotThinkingBadge`
-(animated dots, no emoji), `effects/` (`Confetti` — ember-palette tumbling
-pieces, two waves; `ScreenFlash`; `useShake`; `EventStinger` — full-screen
-Bebas slam for ONE EIGHTY / 100+ finishes / BIG FISH).
+(animated dots, no emoji), `CricketMark` (SVG slash/cross/circled-cross
+notation that pops per mark and hits harder on close), `LifeDots` (Killer
+life track — gained lives pop in, lost lives collapse while the row
+recoils), `effects/` (`Confetti` — ember-palette tumbling pieces, two
+waves; `ScreenFlash`; `useShake`; `EventStinger` — full-screen Bebas slam
+for ONE EIGHTY / 100+ finishes / BIG FISH).
 
-Emoji are allowed as player avatar *content*, never as UI chrome (icons
-come from `components/icons/Icon.tsx`).
+**Icons:** every icon routes through `components/icons/Icon.tsx`, backed
+by `@expo/vector-icons` — Feather primary (2px-stroke minimalism), with
+MaterialCommunityIcons/Ionicons filling gaps. Never hand-drawn SVG glyphs,
+never emoji, never raw glyph text.
+
+**No emoji anywhere** — including avatars. Player/guest/bot avatars store
+`icon:<IconName>` strings in the existing `avatar` field (`iconAvatar()`
+helper in `PlayerAvatar.tsx`); legacy persisted emoji strings still render
+for old players, but the picker offers icons only.
 
 ### The win moment (`GameSummaryScreen`)
 

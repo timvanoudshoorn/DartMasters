@@ -9,7 +9,7 @@ import { Card } from '../components/Card';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { OptionRow } from '../components/OptionRow';
-import { PlayerAvatar } from '../components/PlayerAvatar';
+import { iconAvatar, PlayerAvatar } from '../components/PlayerAvatar';
 import { PlayerSelectGrid } from '../components/PlayerSelectGrid';
 import { QuickAddPlayerSheet } from '../components/QuickAddPlayerSheet';
 import { Screen } from '../components/Screen';
@@ -26,7 +26,16 @@ import { shuffled } from '../utils/shuffle';
 type Route = { params: { gameType: GameConfig['gameType'] } };
 
 const MAX_PLAYERS = 8;
-const GUEST_EMOJI = ['🎯', '🔥', '⚡', '🐺', '🦁', '👑', '🃏', '🚀'];
+const GUEST_AVATARS = [
+  iconAvatar('target'),
+  iconAvatar('flame'),
+  iconAvatar('bolt'),
+  iconAvatar('crosshair'),
+  iconAvatar('shield'),
+  iconAvatar('crown'),
+  iconAvatar('star'),
+  iconAvatar('rocket'),
+];
 const BOT_UNSUPPORTED_MODES: GameConfig['gameType'][] = ['practice170', 'bobs27'];
 
 interface GuestEntry {
@@ -106,7 +115,7 @@ export function GameSetupScreen() {
       id: `guest-${generateId()}`,
       name: `Guest ${n}`,
       color: playerColor(players.length + guests.length),
-      avatar: GUEST_EMOJI[(n - 1) % GUEST_EMOJI.length],
+      avatar: GUEST_AVATARS[(n - 1) % GUEST_AVATARS.length],
     };
     setGuests((prev) => [...prev, guest]);
     setSelectedIds((prev) => [...prev, guest.id]);
@@ -125,7 +134,7 @@ export function GameSetupScreen() {
       id: `bot-${generateId()}`,
       name: `Bot · ${BOT_PROFILES[difficulty].label}`,
       color: playerColor(players.length + guests.length),
-      avatar: '🤖',
+      avatar: iconAvatar('robot'),
       isBot: true,
       botDifficulty: difficulty,
     };

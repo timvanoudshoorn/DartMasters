@@ -1,8 +1,14 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { CheckoutBanner } from '../../components/CheckoutBanner';
 import { DartPad } from '../../components/DartPad';
@@ -105,6 +111,24 @@ export function Practice170GameScreen({ config }: Props) {
   const display = resolvePlayerDisplay(activePlayerId, playerMap, config.guestPlayers);
   const dartsLeft = (3 - visitDarts.length) as 1 | 2 | 3;
   const checkoutCombo = getCheckoutSuggestion(liveRemaining, dartsLeft);
+
+  // The remaining-score ring breathes while a finish is on the board.
+  const ringPulse = useSharedValue(0);
+  const checkoutLive = !!checkoutCombo && !bustFlash;
+  useEffect(() => {
+    if (checkoutLive) {
+      ringPulse.value = withRepeat(
+        withSequence(withTiming(1, { duration: 900 }), withTiming(0, { duration: 900 })),
+        -1,
+        true
+      );
+    } else {
+      ringPulse.value = withTiming(0, { duration: 200 });
+    }
+  }, [checkoutLive]);
+  const ringPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + ringPulse.value * 0.025 }],
+  }));
 
   const checkouts = activePlayer.visits.filter((v) => v.checkout).length;
   const bestDarts = activePlayer.visits
@@ -261,7 +285,8 @@ export function Practice170GameScreen({ config }: Props) {
         <Animated.View
           style={[
             styles.ring,
-            { borderColor: bustFlash ? colors.neonRed : colors.accent },
+            { borderColor: bustFlash ? colors.neonRed : checkoutLive ? colors.success : colors.accent },
+            ringPulseStyle,
             bustFlash ? shakeStyle : null,
           ]}
         >

@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { DartboardLogo } from '../components/DartboardLogo';
 import { Icon, IconName } from '../components/icons/Icon';
+import { CountUp } from '../components/primitives/CountUp';
 import { MountReveal } from '../components/primitives/MountReveal';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
@@ -137,17 +138,23 @@ export function HomeScreen() {
         {/* Stats band */}
         <MountReveal delay={continueMatchInfo ? STAGGER_MS * 2 : STAGGER_MS} style={styles.statsBand}>
           <View style={styles.statsCell}>
-            <Text style={styles.statsValue}>{overview.matches}</Text>
+            <CountUp value={overview.matches} delay={250} duration={600} style={styles.statsValue} />
             <Text style={styles.statsLabel}>MATCHES</Text>
           </View>
           <View style={styles.statsDivider} />
           <View style={styles.statsCell}>
-            <Text style={[styles.statsValue, { color: COLORS.accentHot }]}>{overview.winRate}%</Text>
+            <CountUp
+              value={overview.winRate}
+              delay={250}
+              duration={600}
+              format={(n) => `${Math.round(n)}%`}
+              style={[styles.statsValue, { color: COLORS.accentHot }]}
+            />
             <Text style={styles.statsLabel}>WIN RATE</Text>
           </View>
           <View style={styles.statsDivider} />
           <View style={styles.statsCell}>
-            <Text style={styles.statsValue}>{overview.streak}</Text>
+            <CountUp value={overview.streak} delay={250} duration={600} style={styles.statsValue} />
             <Text style={styles.statsLabel}>STREAK</Text>
           </View>
         </MountReveal>

@@ -1,6 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -13,6 +14,7 @@ import { SwitchRow } from '../components/SwitchRow';
 import { setSoundEnabled } from '../sound/soundManager';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, spacing } from '../theme';
+import { STAGGER_MS } from '../theme/motion';
 import { Player } from '../types';
 
 export function SettingsScreen() {
@@ -61,6 +63,7 @@ export function SettingsScreen() {
     <Screen scroll>
       <Header title="Settings" subtitle="Defaults & data" onBack={() => navigation.goBack()} />
 
+      <Animated.View entering={FadeInDown.duration(260)}>
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={styles.sectionTitle}>DEFAULT MATCH RULES</Text>
         <OptionRow
@@ -100,7 +103,9 @@ export function SettingsScreen() {
           onChange={(v) => update({ soundEnabled: v })}
         />
       </Card>
+      </Animated.View>
 
+      <Animated.View entering={FadeInDown.delay(STAGGER_MS).duration(260)}>
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={styles.sectionTitle}>MANAGE PLAYERS</Text>
         {players.length === 0 ? (
@@ -117,11 +122,14 @@ export function SettingsScreen() {
           ))
         )}
       </Card>
+      </Animated.View>
 
+      <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(260)}>
       <Card style={{ marginBottom: spacing.xl }}>
         <Text style={styles.sectionTitle}>DATA</Text>
         <Button label="CLEAR MATCH HISTORY" variant="danger" onPress={clearHistory} />
       </Card>
+      </Animated.View>
 
       <Text style={styles.about}>DartMasters · Built for the throw</Text>
       <View style={{ height: spacing.xl }} />

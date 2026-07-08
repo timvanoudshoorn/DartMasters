@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { Icon } from '../../components/icons/Icon';
@@ -17,6 +18,7 @@ import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
+import { STAGGER_MS } from '../../theme/motion';
 import { GameConfig, MatchRecord, Multiplier, Player, ShanghaiPlayerState } from '../../types';
 import { generateId } from '../../utils/id';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
@@ -180,36 +182,48 @@ export function ShanghaiGameScreen({ config }: Props) {
           <Text style={styles.legLabel}>ROUND {round} / {totalRounds}</Text>
         </View>
         <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[styles.dartDot, i < dartsThisTurn && styles.dartDotFilled]} />
-          ))}
+          {[0, 1, 2].map((i) =>
+            i < dartsThisTurn ? (
+              <Animated.View
+                key={i}
+                entering={ZoomIn.springify().damping(11).stiffness(240)}
+                style={[styles.dartDot, styles.dartDotFilled]}
+              />
+            ) : (
+              <View key={i} style={styles.dartDot} />
+            )
+          )}
         </View>
       </View>
 
       <View style={styles.scoresRow}>
-        {shanghaiPlayers.map((sp) => {
+        {shanghaiPlayers.map((sp, i) => {
           const display = resolvePlayerDisplay(sp.playerId, playerMap, config.guestPlayers);
           const isActive = sp.playerId === activePlayerId;
           return (
-            <View key={sp.playerId} style={[styles.scoreCard, isActive && styles.scoreCardActive]}>
+            <Animated.View
+              key={sp.playerId}
+              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+              style={[styles.scoreCard, isActive && styles.scoreCardActive]}
+            >
               <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={26} active={isActive} />
               <Text style={[styles.scoreCardName, isActive && styles.scoreCardNameActive]} numberOfLines={1}>{display.name}</Text>
               <AnimatedScore
                 value={sp.score}
                 style={[styles.scoreCardScore, { color: isActive ? colors.textPrimary : colors.textDim }]}
               />
-            </View>
+            </Animated.View>
           );
         })}
       </View>
 
-      <View style={styles.spotlight}>
+      <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(280)} style={styles.spotlight}>
         <Text style={styles.spotlightLabel}>
           {activeDisplay.name.toUpperCase()} — TARGET THIS ROUND
         </Text>
         <AnimatedScore value={target} style={[styles.spotlightTarget, { color: colors.primaryHot }]} />
         <Text style={styles.shanghaiHint}>Single + Double + Triple in one turn = instant win</Text>
-      </View>
+      </Animated.View>
 
       {botThinking && <BotThinkingBadge />}
 

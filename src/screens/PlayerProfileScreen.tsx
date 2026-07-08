@@ -2,6 +2,7 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
@@ -15,6 +16,7 @@ import { aggregateCareerStats } from '../logic/stats';
 import { PlayersStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, spacing } from '../theme';
+import { STAGGER_MS } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
 type Route = { params: { playerId: string } };
@@ -73,21 +75,25 @@ export function PlayerProfileScreen() {
         }
       />
 
-      <View style={styles.profileHeader}>
+      <Animated.View entering={FadeInDown.duration(280)} style={styles.profileHeader}>
         <PlayerAvatar name={player.name} color={player.color} avatar={player.avatar} photoUri={player.photoUri} size={88} active />
         <Text style={styles.name}>{player.name}</Text>
-      </View>
+      </Animated.View>
 
-      <View style={styles.overallGrid}>
+      <Animated.View entering={FadeInDown.delay(STAGGER_MS).duration(280)} style={styles.overallGrid}>
         <StatPill label="Games" value={overall.gamesPlayed} />
         <StatPill label="Wins" value={overall.gamesWon} accent={colors.primary} />
         <StatPill label="Win Rate" value={`${overall.winRate}%`} accent={colors.gold} />
-      </View>
+      </Animated.View>
 
       {typesPlayed.length === 0 ? (
         <EmptyState icon="stats" title="No games played yet" />
       ) : (
-        typesPlayed.map((type) => <GameTypeStats key={type} playerId={playerId} matches={matches} gameType={type} />)
+        typesPlayed.map((type, i) => (
+          <Animated.View key={type} entering={FadeInDown.delay(STAGGER_MS * (i + 2)).duration(280)}>
+            <GameTypeStats playerId={playerId} matches={matches} gameType={type} />
+          </Animated.View>
+        ))
       )}
 
       <Text style={styles.sectionTitle}>RECENT MATCHES</Text>
@@ -95,18 +101,22 @@ export function PlayerProfileScreen() {
         .slice()
         .sort((a, b) => b.date - a.date)
         .slice(0, 10)
-        .map((m) => {
+        .map((m, i) => {
           const modeInfo = getGameModeInfo(m.gameType);
           const won = m.winnerId === playerId;
           return (
-            <View key={m.id} style={styles.matchRow}>
+            <Animated.View
+              key={m.id}
+              entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+              style={styles.matchRow}
+            >
               <Icon name={modeInfo.icon} size={16} color={modeInfo.color} />
               <Text style={styles.matchMode}>{modeInfo.title}</Text>
               <Text style={[styles.matchResult, { color: won ? colors.primary : colors.textMuted }]}>
                 {won ? 'WIN' : 'LOSS'}
               </Text>
               <Text style={styles.matchDate}>{new Date(m.date).toLocaleDateString()}</Text>
-            </View>
+            </Animated.View>
           );
         })}
       <View style={{ height: spacing.xl }} />

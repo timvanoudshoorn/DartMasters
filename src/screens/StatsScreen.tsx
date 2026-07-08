@@ -7,6 +7,7 @@ import { CircularProgress } from '../components/CircularProgress';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
+import { CountUp } from '../components/primitives/CountUp';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
@@ -52,7 +53,7 @@ export function StatsScreen() {
       <View style={styles.overviewRow}>
         <View style={styles.overviewCard}>
           <Icon name="dartboard" size={20} color={colors.textMuted} />
-          <Text style={styles.overviewValue}>{overview.matches}</Text>
+          <CountUp value={overview.matches} delay={150} duration={600} style={styles.overviewValue} />
           <Text style={styles.overviewLabel}>MATCHES</Text>
         </View>
         <View style={styles.overviewCard}>
@@ -61,7 +62,7 @@ export function StatsScreen() {
         </View>
         <View style={styles.overviewCard}>
           <Icon name="flame" size={20} color={colors.primaryHot} />
-          <Text style={styles.overviewValue}>{overview.streak}</Text>
+          <CountUp value={overview.streak} delay={150} duration={600} style={styles.overviewValue} />
           <Text style={styles.overviewLabel}>STREAK</Text>
         </View>
       </View>

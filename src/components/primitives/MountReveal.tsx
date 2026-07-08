@@ -1,28 +1,30 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleProp, ViewStyle } from 'react-native';
+import { Animated, Easing, StyleProp, ViewStyle } from 'react-native';
+
+interface MountRevealProps {
+  children: React.ReactNode;
+  /** ms before the reveal starts — stagger sections by index * STAGGER_MS. */
+  delay?: number;
+  /** px the content rises while fading in. */
+  distance?: number;
+  duration?: number;
+  style?: StyleProp<ViewStyle>;
+}
 
 /**
- * Launch-safe fade+rise entrance built on core RN Animated.
- *
- * Reanimated `entering=` Layout Animations hang the app at splash when used
- * on the initial route on native (web silently no-ops them). Anything
- * visible at app start (HomeScreen) must use this instead of Reanimated
- * entrances; screens mounted after launch may use Reanimated `entering=`
- * freely.
+ * Launch-safe entrance: fade + rise on mount using core RN Animated with the
+ * native driver. Unlike Reanimated's entering= Layout Animations (which hang
+ * the app when used on the initial route on native), this runs everywhere —
+ * launch path included. Use this for anything visible at app start; Reanimated
+ * entering= stays fine for screens mounted after launch.
  */
 export function MountReveal({
   children,
   delay = 0,
   distance = 14,
-  duration = 380,
+  duration = 320,
   style,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  distance?: number;
-  duration?: number;
-  style?: StyleProp<ViewStyle>;
-}) {
+}: MountRevealProps) {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export function MountReveal({
       toValue: 1,
       duration,
       delay,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
     anim.start();
