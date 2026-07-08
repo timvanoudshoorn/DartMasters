@@ -1,5 +1,21 @@
 # DartMasters Bug Log
 
+## Critical Bugs
+
+### 7. iOS App Launch Freeze (Native Init)
+**Commit:** `cf8f362`
+**Severity:** CRITICAL - App appears frozen at launch on iOS
+**Issue:** App hangs at splash screen on iOS native builds, appearing completely frozen to users
+**Root Cause:** Missing native splash screen integration. App.tsx imports and loads fonts but never calls `SplashScreen.hideAsync()` after fonts load. Meanwhile, expo-splash-screen is installed and shows a native splash screen automatically. Without explicit hiding, the splash screen stays visible indefinitely even after the React app is ready.
+**Fix:** 
+- Added `import * as SplashScreen from 'expo-splash-screen'`
+- Called `SplashScreen.preventAutoHideAsync()` at module level
+- Added useEffect that calls `SplashScreen.hideAsync()` when `fontsLoaded` becomes true
+- This ensures splash screen is only hidden after fonts are loaded and React is ready
+**Regression:** This was a pre-existing bug made more noticeable by visual-polish branch changes that may have increased app init time
+**Impact:** Affects iOS native builds only (web was never affected)
+**Status:** ✅ Fixed
+
 ## Fixed Bugs
 
 ### 1. iOS Camera Shutter Sound During Frame Captures
