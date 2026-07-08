@@ -64,6 +64,13 @@
 **Fix:** Added .catch() handlers to all storage operations (both Promise.all() and single .then() calls) to explicitly set state to empty values when errors occur.
 **Status:** ✅ Fixed
 
+### 7. Unhandled Promise Rejection in Sound Playback
+**Commit:** `e18fbee`
+**Issue:** The playSound() function could throw unhandled promise rejections if playAsync() or setPositionAsync() failed, potentially crashing the app if audio playback fails.
+**Root Cause:** The loadSound() promise chain had outer .catch() handler, but the async operations (playAsync, setPositionAsync) inside the .then() handler had no try-catch, so errors would result in unhandled rejections.
+**Fix:** Added try-catch block around playAsync() and setPositionAsync() to catch all audio operation failures and silently handle them.
+**Status:** ✅ Fixed
+
 ## Verification Results
 
 ### Visual Overhaul (Fable 5) Safety Check
