@@ -7,6 +7,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon, IconName } from '../components/icons/Icon';
 import { PlayerAvatar } from '../components/PlayerAvatar';
+import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { aggregateCareerStats } from '../logic/stats';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
@@ -43,7 +44,6 @@ const PERIODS: { key: Period; label: string }[] = [
 
 interface Row {
   player: Player;
-  display: string;
   sub: string;
   value: number;
 }
@@ -77,7 +77,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: all.winRate,
-            display: `${all.winRate.toFixed(0)}%`,
             sub: `${all.gamesWon}-${all.gamesPlayed - all.gamesWon} record`,
           };
         case 'wins':
@@ -85,7 +84,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: all.gamesWon,
-            display: `${all.gamesWon}`,
             sub: `${all.gamesPlayed} played`,
           };
         case 'avg':
@@ -93,7 +91,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: x01.avgThreeDart,
-            display: x01.avgThreeDart.toFixed(1),
             sub: '3-dart average',
           };
         case 'oneEighties':
@@ -101,7 +98,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: x01.oneEighties,
-            display: `${x01.oneEighties}`,
             sub: '180s thrown',
           };
         case 'checkout':
@@ -109,7 +105,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: x01.highestCheckout,
-            display: `${x01.highestCheckout}`,
             sub: 'best checkout',
           };
         case 'matches':
@@ -117,7 +112,6 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
           return {
             player: p,
             value: all.gamesPlayed,
-            display: `${all.gamesPlayed}`,
             sub: `${all.gamesWon} wins`,
           };
         default:
@@ -131,6 +125,13 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
 }
 
 const RANK_COLORS = ['#E8C84A', '#C7CDD6', '#C98A4F'];
+
+/** Mirrors the `display` formatting in buildRows, for CountUp's in-flight text. */
+function formatRowValue(category: CategoryKey, n: number): string {
+  if (category === 'winRate') return `${n.toFixed(0)}%`;
+  if (category === 'avg') return n.toFixed(1);
+  return `${Math.round(n)}`;
+}
 
 export function LeaderboardScreen() {
   const navigation = useNavigation();
@@ -246,7 +247,13 @@ export function LeaderboardScreen() {
                   </View>
                   <Text style={styles.sub}>{row.sub}</Text>
                 </View>
-                <Text style={styles.value}>{row.display}</Text>
+                <CountUp
+                  value={row.value}
+                  format={(n) => formatRowValue(category, n)}
+                  delay={Math.min(i, 8) * STAGGER_MS + 150}
+                  duration={600}
+                  style={styles.value}
+                />
               </Animated.View>
             );
           })}
