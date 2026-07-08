@@ -26,7 +26,12 @@ export function ChallengesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      computeDailyChallengeReport().then(setReport);
+      computeDailyChallengeReport()
+        .then(setReport)
+        .catch((err) => {
+          console.error('[ChallengesScreen] Failed to compute challenges:', err);
+          setReport(null);
+        });
     }, [])
   );
 

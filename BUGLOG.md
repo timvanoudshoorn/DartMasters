@@ -1,5 +1,21 @@
 # DartMasters Bug Log
 
+## Critical Bugs
+
+### 7. iOS App Launch Freeze (Native Init)
+**Commit:** `cf8f362`
+**Severity:** CRITICAL - App appears frozen at launch on iOS
+**Issue:** App hangs at splash screen on iOS native builds, appearing completely frozen to users
+**Root Cause:** Missing native splash screen integration. App.tsx imports and loads fonts but never calls `SplashScreen.hideAsync()` after fonts load. Meanwhile, expo-splash-screen is installed and shows a native splash screen automatically. Without explicit hiding, the splash screen stays visible indefinitely even after the React app is ready.
+**Fix:** 
+- Added `import * as SplashScreen from 'expo-splash-screen'`
+- Called `SplashScreen.preventAutoHideAsync()` at module level
+- Added useEffect that calls `SplashScreen.hideAsync()` when `fontsLoaded` becomes true
+- This ensures splash screen is only hidden after fonts are loaded and React is ready
+**Regression:** This was a pre-existing bug made more noticeable by visual-polish branch changes that may have increased app init time
+**Impact:** Affects iOS native builds only (web was never affected)
+**Status:** ✅ Fixed
+
 ## Fixed Bugs
 
 ### 1. iOS Camera Shutter Sound During Frame Captures
@@ -38,12 +54,22 @@
 **Affected Screens:** X01GameScreen, Practice170GameScreen
 **Status:** ✅ Fixed
 
-### 6. Missing Error Handling for Data Loading Screens
-**Commits:** `0505bbe`, `bca0de1`, `ce7347e`
-**Issue:** Multiple screens loading storage data via Promise.all() with no error handling. If any operation fails, data remains uninitialized and screen appears blank.
-**Root Cause:** Storage operations had no .catch() handlers, so Promise rejections were silently ignored and state remained in initial empty state.
-**Affected Screens:** HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen, LeaderboardScreen, MatchDetailScreen, PlayerProfileScreen
-**Fix:** Added .catch() handlers to all Promise.all() operations to explicitly set state to empty values when errors occur.
+### 6. Missing Error Handling for Storage Operations (Comprehensive Fix)
+**Commits:** `0505bbe`, `bca0de1`, `ce7347e`, `9da36f7`, `5a33837`, `143bc22`
+**Issue:** Systematic error handling gaps across 21 screens: both Promise.all() chains and single .then() calls lacked .catch() handlers. If any storage operation failed, data remained uninitialized or app got stuck on game screens.
+**Root Cause:** Storage operations had no .catch() handlers, so Promise rejections were silently ignored and state remained in initial/empty state.
+**Affected Screens:** 
+- Promise.all() screens: HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen, LeaderboardScreen, MatchDetailScreen, PlayerProfileScreen, SettingsScreen
+- Single-promise data loads: BullOffScreen, ChallengesScreen, GameSetupScreen, PlayerEditScreen, AroundTheClockGameScreen, Bobs27GameScreen, CricketGameScreen, KillerGameScreen, Practice170GameScreen, ShanghaiGameScreen, X01GameScreen
+- MatchStorage.save() during match finalization: X01GameScreen, AroundTheClockGameScreen, Bobs27GameScreen, CricketGameScreen, KillerGameScreen, Practice170GameScreen, ShanghaiGameScreen
+**Fix:** Added comprehensive .catch() handlers to ALL storage operations (Promise.all(), single .then() calls, and match-save operations) to log errors and either set state to empty values or proceed with navigation regardless of storage success.
+**Status:** ✅ Fixed - All 21 screens now have proper error handling
+
+### 7. Unhandled Promise Rejection in Sound Playback
+**Commit:** `e18fbee`
+**Issue:** The playSound() function could throw unhandled promise rejections if playAsync() or setPositionAsync() failed, potentially crashing the app if audio playback fails.
+**Root Cause:** The loadSound() promise chain had outer .catch() handler, but the async operations (playAsync, setPositionAsync) inside the .then() handler had no try-catch, so errors would result in unhandled rejections.
+**Fix:** Added try-catch block around playAsync() and setPositionAsync() to catch all audio operation failures and silently handle them.
 **Status:** ✅ Fixed
 
 ## Verification Results

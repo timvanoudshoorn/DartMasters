@@ -38,7 +38,12 @@ export function Bobs27GameScreen({ config }: Props) {
   const playSfx = useSoundEffects();
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[Bobs27GameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   const playerMap = useMemo(() => {

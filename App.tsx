@@ -9,6 +9,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
+import * as SplashScreen from 'expo-splash-screen';
 import { Audio } from 'expo-av';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
@@ -20,6 +21,8 @@ import { preloadSounds, setSoundEnabled } from './src/sound/soundManager';
 import { SettingsStorage } from './src/storage/storage';
 import { colors } from './src/theme';
 import { preloadAnnouncerSounds } from './src/utils/dartAnnouncer';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -41,6 +44,12 @@ export default function App() {
     preloadSounds();
     preloadAnnouncerSounds();
   }, []);
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: colors.bg }} />;

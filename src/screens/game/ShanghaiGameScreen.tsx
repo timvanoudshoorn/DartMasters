@@ -48,7 +48,12 @@ export function ShanghaiGameScreen({ config }: Props) {
   const isBot = (playerId: string) => !!config.guestPlayers?.[playerId]?.isBot;
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[ShanghaiGameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   const playerMap = useMemo(() => {

@@ -81,7 +81,12 @@ export function CricketGameScreen({ config }: Props) {
   };
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[CricketGameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   const playerMap = useMemo(() => {

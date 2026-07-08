@@ -104,7 +104,12 @@ export function X01GameScreen({ config }: Props) {
   const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[X01GameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   React.useEffect(() => {
@@ -207,9 +212,14 @@ export function X01GameScreen({ config }: Props) {
       botPlayerIds: botPlayerIds(config),
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => {
-      navigation.replace('GameSummary', { matchId: record.id });
-    });
+    MatchStorage.save(record)
+      .then(() => {
+        navigation.replace('GameSummary', { matchId: record.id });
+      })
+      .catch((err) => {
+        console.error('[X01GameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
   const startNextTurn = (s: MatchState, nextTurnIndex: number, openedFor: string) => {

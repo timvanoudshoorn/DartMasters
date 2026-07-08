@@ -72,17 +72,28 @@ export function GameSetupScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      PlayerStorage.getAll().then(setPlayers);
+      PlayerStorage.getAll()
+        .then(setPlayers)
+        .catch((err) => {
+          console.error('[GameSetupScreen] Failed to load players:', err);
+          setPlayers([]);
+        });
     }, [])
   );
 
   useEffect(() => {
-    SettingsStorage.get().then((s) => {
-      setLegsToWin(gameType === 'aroundTheClock' ? 1 : s.defaultLegsToWin);
-      setSetsToWin(s.defaultSetsToWin);
-      setOutMode(s.defaultOutMode);
-      setInMode(s.defaultInMode);
-    });
+    SettingsStorage.get()
+      .then((s) => {
+        setLegsToWin(gameType === 'aroundTheClock' ? 1 : s.defaultLegsToWin);
+        setSetsToWin(s.defaultSetsToWin);
+        setOutMode(s.defaultOutMode);
+        setInMode(s.defaultInMode);
+      })
+      .catch((err) => {
+        console.error('[GameSetupScreen] Failed to load settings:', err);
+        setLegsToWin(gameType === 'aroundTheClock' ? 1 : 1);
+        setSetsToWin(1);
+      });
   }, []);
 
   const atCap = selectedIds.length >= MAX_PLAYERS;
