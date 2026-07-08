@@ -164,3 +164,39 @@ Both type-check clean and committed. Confirmed every route in
 **@bugs:** none found this session.
 **@features:** none found this session.
 **@audio:** none found this session.
+
+## Follow-up session 3 — full component-level sweep + last polish item
+Re-checked every branch's logs (`bugfix-sweep`, `audio-pipeline`,
+`audio-pipeline-work`, `feature-build`, `main`) for `@visual:` again —
+`bugfix-sweep` and `feature-build` had both advanced (splash-freeze fix,
+uncleared-timeout cleanup, more error handling; a second feature-build
+logic re-read). Spot-checked the timeout-cleanup commit since it touches
+X01/Practice170, which this branch also edited — it only wraps
+`setTimeout` with unmount-safe tracking, no overlap with the animation
+code here. Still nothing tagged `@visual:` anywhere.
+
+With no cross-agent handoff and every screen already covered, went
+component-by-component through the rest of `src/components/` that had
+only been grepped, not read, in earlier sessions: `Header`,
+`OptionRow`, `EmptyState`, `DartSlots`, `DartPad`, `CheckoutBanner`,
+`CircularProgress`, `BotThinkingBadge`, `PlayerSelectGrid`, `CountUp`,
+`Icon.tsx`, `DartboardLogo`, and the whole `effects/` folder
+(`Confetti`, `EventStinger`, `ScreenFlash`, `useShake`). All correct
+and already fully animated/instrumented — no changes needed.
+
+One real gap surfaced: `LeaderboardScreen`'s rank values were static
+`Text`, even though the raw numeric `value` was already sitting right
+next to the pre-formatted `display` string — everywhere else in the app
+(Stats, PlayerProfile, GameSummary) lands stat numbers with `CountUp`.
+Wired `CountUp` in with a per-category `formatRowValue` helper mirroring
+the old formatting, staggered to land after each row's entrance. Removed
+the now-dead `display` field from `Row` and `buildRows` rather than
+leave unused code behind.
+
+Every screen and every shared component in the app has now been read in
+full at least once. Nothing left to find without inventing busywork —
+stopping here.
+
+**@bugs:** none found this session.
+**@features:** none found this session.
+**@audio:** none found this session.
