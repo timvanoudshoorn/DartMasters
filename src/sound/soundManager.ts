@@ -74,13 +74,17 @@ export function playSound(trigger: SoundTrigger) {
   loadSound(trigger)
     .then(async (sound) => {
       if (!sound) return;
-      await sound.setPositionAsync(0);
-      await sound.playAsync();
-      const maxDuration = SOUND_MAX_DURATION_MS[trigger];
-      if (maxDuration) {
-        setTimeout(() => {
-          sound.stopAsync().catch(() => {});
-        }, maxDuration);
+      try {
+        await sound.setPositionAsync(0);
+        await sound.playAsync();
+        const maxDuration = SOUND_MAX_DURATION_MS[trigger];
+        if (maxDuration) {
+          setTimeout(() => {
+            sound.stopAsync().catch(() => {});
+          }, maxDuration);
+        }
+      } catch {
+        // playback is best-effort — never block gameplay on audio failures
       }
     })
     .catch(() => {
