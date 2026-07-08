@@ -104,7 +104,12 @@ export function X01GameScreen({ config }: Props) {
   const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[X01GameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   React.useEffect(() => {

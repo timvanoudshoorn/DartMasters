@@ -54,7 +54,12 @@ export function AroundTheClockGameScreen({ config }: Props) {
   const playSfx = useSoundEffects();
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[AroundTheClockGameScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   const playerMap = useMemo(() => {

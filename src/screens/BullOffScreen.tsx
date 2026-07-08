@@ -43,7 +43,12 @@ export function BullOffScreen() {
   const navigatedRef = React.useRef(false);
 
   React.useEffect(() => {
-    PlayerStorage.getAll().then(setPlayers);
+    PlayerStorage.getAll()
+      .then(setPlayers)
+      .catch((err) => {
+        console.error('[BullOffScreen] Failed to load players:', err);
+        setPlayers([]);
+      });
   }, []);
 
   const playerMap = useMemo(() => {
