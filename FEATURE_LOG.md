@@ -96,3 +96,39 @@ systems not read closely last session:
 
 No further gaps found. Nothing outstanding — stopping here rather than
 manufacturing more work.
+
+## Session 2026-07-08
+
+Checked all three cross-agent logs for `@features:` tags:
+- `BUGLOG.md` (bugfix-sweep) — none. New fixes since yesterday (splash
+  screen freeze, uncleared timeouts in X01/Practice170, missing
+  `.catch()` handlers across game/data screens) are all bug fixes on
+  their own branch, nothing tagged for features work.
+- `VISUAL_LOG.md` (visual-polish) — explicitly logged "`@features:` none
+  found this session." Their pass also independently re-confirmed no
+  game logic or camera code was touched by the visual overhaul.
+- `AUDIO_LOG.md` (audio-pipeline) — none; unchanged since yesterday.
+
+Nothing to pick up from other agents. Re-verified my own worktree is
+still clean and `npx tsc --noEmit` still passes, then read through the
+few screens/modules from the backlog I'd only grepped or skimmed
+before, to make sure nothing was missed:
+- `CricketGameScreen.tsx` — full read. Multi-leg rotation, cut-throat
+  toast for closed targets, accum stats all correct. Noted that tapping
+  a target already closed by every player at the table is blocked with
+  a "Closed" toast rather than consuming one of the 3 darts — a
+  deliberate simplification (matches how digital scorers typically grey
+  out fully-dead numbers), not a scoring-math bug, left as-is.
+- `AroundTheClockGameScreen.tsx` — full read. Skip-ahead doubles mode,
+  bull-finish rule, per-leg miss tracking and reset, all correct.
+- `ShanghaiGameScreen.tsx` — full read. Round = target number, instant
+  win on single+double+triple, leader-by-score fallback at the last
+  round. Correct.
+- `Bobs27GameScreen.tsx` — full read. Per-dart hit/miss tallied into a
+  3-dart round result, applied via `applyBobs27Round`. Correct.
+- `storage/storage.ts` — plain AsyncStorage wrappers for players,
+  matches, bull-off log, settings. No gaps.
+
+No new gaps found anywhere. Every backlog item and every game/logic
+module has now had a full line-by-line read across the two sessions.
+Stopping here — there is genuinely nothing left to do.
