@@ -96,3 +96,69 @@ systems not read closely last session:
 
 No further gaps found. Nothing outstanding — stopping here rather than
 manufacturing more work.
+
+## Session 2026-07-08
+
+Checked all three cross-agent logs for `@features:` tags:
+- `BUGLOG.md` (bugfix-sweep) — none. New fixes since yesterday (splash
+  screen freeze, uncleared timeouts in X01/Practice170, missing
+  `.catch()` handlers across game/data screens) are all bug fixes on
+  their own branch, nothing tagged for features work.
+- `VISUAL_LOG.md` (visual-polish) — explicitly logged "`@features:` none
+  found this session." Their pass also independently re-confirmed no
+  game logic or camera code was touched by the visual overhaul.
+- `AUDIO_LOG.md` (audio-pipeline) — none; unchanged since yesterday.
+
+Nothing to pick up from other agents. Re-verified my own worktree is
+still clean and `npx tsc --noEmit` still passes, then read through the
+few screens/modules from the backlog I'd only grepped or skimmed
+before, to make sure nothing was missed:
+- `CricketGameScreen.tsx` — full read. Multi-leg rotation, cut-throat
+  toast for closed targets, accum stats all correct. Noted that tapping
+  a target already closed by every player at the table is blocked with
+  a "Closed" toast rather than consuming one of the 3 darts — a
+  deliberate simplification (matches how digital scorers typically grey
+  out fully-dead numbers), not a scoring-math bug, left as-is.
+- `AroundTheClockGameScreen.tsx` — full read. Skip-ahead doubles mode,
+  bull-finish rule, per-leg miss tracking and reset, all correct.
+- `ShanghaiGameScreen.tsx` — full read. Round = target number, instant
+  win on single+double+triple, leader-by-score fallback at the last
+  round. Correct.
+- `Bobs27GameScreen.tsx` — full read. Per-dart hit/miss tallied into a
+  3-dart round result, applied via `applyBobs27Round`. Correct.
+- `storage/storage.ts` — plain AsyncStorage wrappers for players,
+  matches, bull-off log, settings. No gaps.
+
+No new gaps found anywhere. Every backlog item and every game/logic
+module has now had a full line-by-line read across the two sessions.
+Stopping here — there is genuinely nothing left to do.
+
+## Session 2026-07-08 (cont.)
+
+Re-checked all three other logs again:
+- `BUGLOG.md` (bugfix-sweep) — no `@features:` tags. New entries since
+  last check are all robustness fixes (comprehensive `.catch()` handling
+  across 21 screens, sound-playback try/catch) — none touch scoring
+  math or game rules.
+- `VISUAL_LOG.md` (visual-polish) — two more sessions logged
+  (Leaderboard/MatchDetail entrance animations), each explicitly ending
+  with "`@features:` none found this session."
+- `AUDIO_LOG.md` — unchanged, no tags.
+
+Noteworthy: `visual-polish`'s log notes that `main` has already merged
+`bugfix-sweep`, `audio-pipeline`, and `feature-build` (as of my
+`0d6147c`) via merge commits. That's outside my remit — I stay on
+`feature-build` in this worktree per instructions and don't merge or
+push myself.
+
+Read `GameSetupScreen.tsx` and `src/types/index.ts` in full (the last
+two files in the game-systems surface area I hadn't read end-to-end):
+per-mode option gating (legs/sets, out/in mode, cut-throat, skip-ahead,
+lives, Shanghai rounds), bot-support gating, minimum player counts
+(Killer requires 2+, everything else allows solo practice), and the
+`GameConfig`/`MatchRecord`/per-mode state shapes all check out — fully
+consistent with every game screen already reviewed.
+
+Nothing left. Every screen, every logic module, every data/storage
+file, and every cross-agent log has been checked across three sessions
+now with no further findings. Concluding here.
