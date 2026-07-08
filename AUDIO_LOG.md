@@ -77,13 +77,24 @@ HIGGSFIELD_API_KEY=<key> node scripts/generateAnnouncer.js
 - CLAUDE.md does not specify exact volumes, only principles
 - Current implementation correctly applies those principles
 
+### ✅ Bug Fix: Unhandled Promise Rejection in Sound Playback
+- **Commit:** `e18fbee` (2026-07-08)
+- **Issue:** playSound() could throw unhandled promise rejections if playAsync() or setPositionAsync() failed
+- **Root Cause:** loadSound() had outer .catch() but async operations inside .then() handler had no try-catch
+- **Fix:** Added try-catch block around playAsync() and setPositionAsync() calls
+- **Impact:** Prevents potential app crashes from audio playback failures
+- **Status:** ✅ Fixed and cherry-picked to audio-pipeline
+
 ---
 
-## Session Summary (2026-07-07)
+## Session Summary (2026-07-07–2026-07-08)
 
 All three priority backlog items verified complete:
 1. 180 announcer clip generation infrastructure ready (script created, all clips present)
 2. Old combo logic already removed (dartAnnouncer.ts already clean)
 3. Sound effect volumes verified balanced and correct per specification
 
-No @audio: tags found in BUGLOG.md. No issues flagged by other agents.
+Additional bug fixes integrated:
+- Sound playback error handling (unhandled promise rejection prevention)
+
+No @audio: tags found in BUGLOG.md initially. New audio bug fix discovered and integrated on 2026-07-08.
