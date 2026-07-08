@@ -55,11 +55,13 @@
 **Status:** ✅ Fixed
 
 ### 6. Missing Error Handling for Data Loading Screens
-**Commits:** `0505bbe`, `bca0de1`, `ce7347e`
-**Issue:** Multiple screens loading storage data via Promise.all() with no error handling. If any operation fails, data remains uninitialized and screen appears blank.
+**Commits:** `0505bbe`, `bca0de1`, `ce7347e`, `9da36f7`, `5a33837`
+**Issue:** Multiple screens loading storage data with no error handling. Both Promise.all() chains and single .then() calls lacked .catch() handlers. If any operation fails, data remains uninitialized.
 **Root Cause:** Storage operations had no .catch() handlers, so Promise rejections were silently ignored and state remained in initial empty state.
-**Affected Screens:** HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen, LeaderboardScreen, MatchDetailScreen, PlayerProfileScreen
-**Fix:** Added .catch() handlers to all Promise.all() operations to explicitly set state to empty values when errors occur.
+**Affected Screens:** 
+- Promise.all() screens: HomeScreen, GameSummaryScreen, PlayersListScreen, StatsScreen, LeaderboardScreen, MatchDetailScreen, PlayerProfileScreen, SettingsScreen
+- Single-promise screens: BullOffScreen, ChallengesScreen, GameSetupScreen, AroundTheClockGameScreen, Bobs27GameScreen, CricketGameScreen, KillerGameScreen, ShanghaiGameScreen, X01GameScreen
+**Fix:** Added .catch() handlers to all storage operations (both Promise.all() and single .then() calls) to explicitly set state to empty values when errors occur.
 **Status:** ✅ Fixed
 
 ## Verification Results
