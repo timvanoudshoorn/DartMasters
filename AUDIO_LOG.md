@@ -77,13 +77,37 @@ HIGGSFIELD_API_KEY=<key> node scripts/generateAnnouncer.js
 - CLAUDE.md does not specify exact volumes, only principles
 - Current implementation correctly applies those principles
 
+### ✅ Bug Fix: Checkout Announcement Overlap (Audio)
+- **Commit:** `dafca3f` / `9aaaaab` (2026-07-07, ported 2026-07-08)
+- **Issue:** Score announcements could overlap with GAME SHOT announcement during checkout
+- **Root Cause:** Code correctly skipped score announcements on checkout, but had no explicit cancellation of pending announcements before playing game shot
+- **Fix:** Added `cancelAnnouncements()` function that increments sequenceToken and stops any currently playing clip
+- **Impact:** Checkout moments now have crisp, non-overlapping announcements
+- **Status:** ✅ Fixed and integrated to audio-pipeline
+
+### ✅ Bug Fix: Unhandled Promise Rejection in Sound Playback
+- **Commit:** `e18fbee` (2026-07-08)
+- **Issue:** playSound() could throw unhandled promise rejections if playAsync() or setPositionAsync() failed
+- **Root Cause:** loadSound() had outer .catch() but async operations inside .then() handler had no try-catch
+- **Fix:** Added try-catch block around playAsync() and setPositionAsync() calls
+- **Impact:** Prevents potential app crashes from audio playback failures
+- **Status:** ✅ Fixed and cherry-picked to audio-pipeline
+
 ---
 
-## Session Summary (2026-07-07)
+## Session Summary (2026-07-07–2026-07-08)
 
 All three priority backlog items verified complete:
 1. 180 announcer clip generation infrastructure ready (script created, all clips present)
 2. Old combo logic already removed (dartAnnouncer.ts already clean)
 3. Sound effect volumes verified balanced and correct per specification
 
-No @audio: tags found in BUGLOG.md. No issues flagged by other agents.
+Critical audio bug fixes integrated:
+- Checkout announcement overlap prevention (cancelAnnouncements function)
+- Sound playback error handling (unhandled promise rejection prevention)
+
+Work log:
+- 2026-07-07: Initial backlog completion and verification
+- 2026-07-08: Discovered missing audio bug fixes on bugfix-sweep, cherry-picked to audio-pipeline
+  - e18fbee: Unhandled promise rejection in playSound()
+  - dafca3f: Checkout announcement overlap (ported as 9aaaaab)
