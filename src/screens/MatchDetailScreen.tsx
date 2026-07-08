@@ -2,6 +2,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Header } from '../components/Header';
@@ -12,6 +13,7 @@ import { getGameModeInfo } from '../data/gameModes';
 import { StatsStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing, typography } from '../theme';
+import { STAGGER_MS } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
 
@@ -60,55 +62,58 @@ export function MatchDetailScreen() {
         onBack={() => navigation.goBack()}
       />
 
-      {match.playerIds.map((id) => {
+      {match.playerIds.map((id, i) => {
         const display = resolvePlayerDisplayFromMatch(id, players, match);
         const r = match.results[id];
         if (!r) return null;
         const isWinner = id === match.winnerId;
         return (
-          <Card
-            key={id}
-            elevated={isWinner}
-            style={[styles.playerCard, isWinner && { borderColor: display.color }]}
-          >
-            <View style={styles.playerHeader}>
-              <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={36} />
-              <Text style={styles.playerName}>{display.name}</Text>
-              {isWinner && (
-                <View style={[styles.winnerTagBox, { backgroundColor: display.color + '1F', borderColor: display.color }]}>
-                  <Text style={[styles.winnerTag, { color: display.color }]}>WINNER</Text>
-                </View>
-              )}
-            </View>
-
-            {isX01 && (
-              <View style={styles.statsGrid}>
-                <StatPill label="3-Dart Avg" value={r.threeDartAvg.toFixed(1)} accent={colors.neonCyan} />
-                <StatPill label="Highest CO" value={r.highestCheckout || '—'} accent={colors.gold} />
-                <StatPill label="180s" value={r.oneEighties} accent={colors.neonGreen} />
-                <StatPill label="Best Leg" value={r.bestLegDarts ?? '—'} />
-              </View>
-            )}
-            {isCricket && (
-              <View style={styles.statsGrid}>
-                <StatPill label="MPR" value={r.marksPerRound ? r.marksPerRound.toFixed(2) : '—'} accent={colors.neonCyan} />
-                <StatPill label="Points" value={r.totalScored} />
-                <StatPill label="Darts" value={r.dartsThrown} />
-              </View>
-            )}
-            {!isX01 && !isCricket && (
-              <View style={styles.statsGrid}>
-                <StatPill label="Darts" value={r.dartsThrown} />
-                {(match.gameType === 'shanghai' || match.gameType === 'bobs27') && (
-                  <StatPill label="Score" value={r.totalScored} accent={colors.neonCyan} />
+          <Animated.View key={id} entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}>
+            <Card
+              elevated={isWinner}
+              style={[styles.playerCard, isWinner && { borderColor: display.color }]}
+            >
+              <View style={styles.playerHeader}>
+                <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={36} />
+                <Text style={styles.playerName}>{display.name}</Text>
+                {isWinner && (
+                  <View style={[styles.winnerTagBox, { backgroundColor: display.color + '1F', borderColor: display.color }]}>
+                    <Text style={[styles.winnerTag, { color: display.color }]}>WINNER</Text>
+                  </View>
                 )}
               </View>
-            )}
-          </Card>
+
+              {isX01 && (
+                <View style={styles.statsGrid}>
+                  <StatPill label="3-Dart Avg" value={r.threeDartAvg.toFixed(1)} accent={colors.neonCyan} />
+                  <StatPill label="Highest CO" value={r.highestCheckout || '—'} accent={colors.gold} />
+                  <StatPill label="180s" value={r.oneEighties} accent={colors.neonGreen} />
+                  <StatPill label="Best Leg" value={r.bestLegDarts ?? '—'} />
+                </View>
+              )}
+              {isCricket && (
+                <View style={styles.statsGrid}>
+                  <StatPill label="MPR" value={r.marksPerRound ? r.marksPerRound.toFixed(2) : '—'} accent={colors.neonCyan} />
+                  <StatPill label="Points" value={r.totalScored} />
+                  <StatPill label="Darts" value={r.dartsThrown} />
+                </View>
+              )}
+              {!isX01 && !isCricket && (
+                <View style={styles.statsGrid}>
+                  <StatPill label="Darts" value={r.dartsThrown} />
+                  {(match.gameType === 'shanghai' || match.gameType === 'bobs27') && (
+                    <StatPill label="Score" value={r.totalScored} accent={colors.neonCyan} />
+                  )}
+                </View>
+              )}
+            </Card>
+          </Animated.View>
         );
       })}
 
-      <Button label="DELETE MATCH" variant="danger" onPress={deleteMatch} style={{ marginTop: spacing.lg, marginBottom: spacing.xl }} />
+      <Animated.View entering={FadeInUp.delay(match.playerIds.length * STAGGER_MS).duration(260)}>
+        <Button label="DELETE MATCH" variant="danger" onPress={deleteMatch} style={{ marginTop: spacing.lg, marginBottom: spacing.xl }} />
+      </Animated.View>
     </Screen>
   );
 }
