@@ -9,10 +9,10 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
-import { PressableScale } from '../components/primitives/PressableScale';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { Screen } from '../components/Screen';
+import { TabBar } from '../components/TabBar';
 import { ChallengeStatus, computeDailyChallengeReport, DailyChallengeReport } from '../logic/challengeProgress';
 import { colors, fonts, radius, spacing } from '../theme';
 import { STAGGER_MS } from '../theme/motion';
@@ -50,8 +50,14 @@ export function ChallengesScreen() {
       )}
 
       <View style={styles.tabRow}>
-        <TabButton label="Solo" active={tab === 'solo'} onPress={() => setTab('solo')} />
-        <TabButton label="With Friends" active={tab === 'multiplayer'} onPress={() => setTab('multiplayer')} />
+        <TabBar
+          options={[
+            { key: 'solo', label: 'Solo' },
+            { key: 'multiplayer', label: 'With Friends' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </View>
 
       <View style={styles.list}>
@@ -62,14 +68,6 @@ export function ChallengesScreen() {
 
       <View style={{ height: spacing.xl }} />
     </Screen>
-  );
-}
-
-function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <PressableScale onPress={onPress} haptic="tick" scaleTo={0.95} style={[styles.tabBtn, active && styles.tabBtnActive]}>
-      <Text style={[styles.tabBtnLabel, active && styles.tabBtnLabelActive]}>{label}</Text>
-    </PressableScale>
   );
 }
 
@@ -89,7 +87,7 @@ function ChallengeCard({ status, index }: { status: ChallengeStatus; index: numb
             entering={ZoomIn.delay(index * STAGGER_MS + 200).springify().damping(11)}
             style={styles.checkBadge}
           >
-            <Icon name="checkmark" size={14} color="#0A0A0A" />
+            <Icon name="checkmark" size={14} color={colors.onFill} />
           </Animated.View>
         ) : (
           <Text style={styles.cardCount}>
@@ -125,28 +123,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   tabRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.bgCardAlt,
-    borderRadius: radius.full,
-    padding: 4,
     marginBottom: spacing.lg,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: spacing.sm + 2,
-    alignItems: 'center',
-    borderRadius: radius.full,
-  },
-  tabBtnActive: {
-    backgroundColor: colors.primary,
-  },
-  tabBtnLabel: {
-    fontFamily: fonts.bodyExtraBold,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  tabBtnLabelActive: {
-    color: colors.textPrimary,
   },
   list: {
     gap: spacing.sm,
