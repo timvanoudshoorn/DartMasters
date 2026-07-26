@@ -420,3 +420,125 @@ still correct (`npx tsc --noEmit` clean) and `EventStinger.tsx` was not
 otherwise touched by me. Flagging here per the "don't touch this round"
 rule on that file, in case the UI/Animation Agent's own report expects
 that line still present.
+
+## Round: Achievement-celebration Stage 1 + CheckoutTrainer per-player storage
+
+### Task 1 — `newAchievementsFromMatch` (achievement-unlock celebration, Logic stage)
+
+Added to `src/logic/achievements.ts`, directly after `computeAchievements`:
+
+```ts
+export function newAchievementsFromMatch(
+  matches: MatchRecord[],
+  playerId: string,
+  thisMatchId: string
+): AchievementStatus[]
+```
+
+Pure diffing wrapper, same shape as `newPersonalBestsFromMatch` in
+`personalBests.ts`: runs `computeAchievements` once with the full history
+and once with `thisMatchId` filtered out, then returns every status whose
+`earned` flipped `false -> true`. `computeAchievements`'s own logic, return
+type, and call sites are untouched — grepped for callers first and
+confirmed the only one is `AchievementsScreen.tsx` (`computeAchievements(matches, selectedPlayerId)` for the whole-history badge grid); `GameSummaryScreen.tsx`
+doesn't call it at all yet (that's the later UI stage of this same collab).
+
+Simpler than the PB case: no "lower is better" direction table needed,
+and no `matchId`/tie-breaking logic — `earned` is a plain monotonic
+boolean, so a strict flip is unambiguous. `AchievementStatus` has no
+`matchId`/`date` of its own (unlike `PersonalBestRecord`), so there's
+nothing to tap through to MatchDetail with directly; documented in the
+collab doc that the UI Agent should reuse `thisMatchId` from its own
+caller if it wants that.
+
+Filled in the full "Logic/Systems Agent" section of
+`docs/agent-comms/collab-achievement-celebration.md` with the signature,
+field meanings for badge copy (`definition.title`/`description`/`icon`),
+and these judgment calls, per the collab doc's sequencing rules.
+
+### Task 2 — `CheckoutTrainerStorage` made per-player
+
+Read `src/storage/storage.ts`'s `CheckoutTrainerStorage` (lines ~113-120
+before this change) and `src/screens/CheckoutTrainerScreen.tsx` fully.
+Confirmed: the screen has zero player-selection concept currently — it
+just calls `CheckoutTrainerStorage.getBest()`/`.setBest(next)` with no
+player id, and the best streak was stored as a single plain `number` under
+the fixed key `@dartmasters/checkoutTrainerBest`, shared across every
+profile.
+
+**New shape:** kept the same existing key (no new key-naming scheme
+introduced) but changed its stored value to a `Record<playerId, number>`
+blob:
+
+```ts
+export const CheckoutTrainerStorage = {
+  async getBest(playerId: string): Promise<number>,
+  async setBest(playerId: string, best: number): Promise<void>,
+};
+```
+
+Both functions are now `playerId`-first-arg, matching the calling
+convention used elsewhere in the app (e.g. `computeAchievements(matches,
+playerId)`, `computePersonalBests(matches, playerId)`).
+
+**Migration approach (deliberate, not a silent reset):** `getBest`/`setBest`
+both read the raw stored value first and type-guard on whether it's still
+the old plain-number shape (`isLegacyGlobalNumber`). If it is:
+- `getBest(playerId)` returns that legacy number directly for *any* player,
+  since nobody has migrated yet.
+- `setBest(playerId, best)` converts the blob at that point, but doesn't
+  drop the old number — it's carried forward into the new blob under a
+  reserved field, `LEGACY_FALLBACK_FIELD = '__legacyGlobalBest__'`, which
+  real `Player.id` values will never collide with. `getBest` checks this
+  reserved field as a fallback for any player who doesn't yet have their
+  own real entry in the blob.
+
+This means: player A can practice, set a new best, and the old shared
+number is preserved for player B (and everyone else) to still fall back to
+until *they* set their own value — not just a "first reader wins" migration,
+which would have silently orphaned the legacy value for every player after
+the first `setBest` call. Once a specific player has their own entry, their
+own value always wins over the legacy fallback and the old number is never
+consulted again for them specifically, but it stays in the blob (not
+deleted) for others. This was the one part of this task I treated as a real
+data-safety judgment call rather than a mechanical rename, per the brief.
+
+**Screen wiring (kept to the minimum, explicitly marked placeholder):**
+`CheckoutTrainerScreen.tsx` has no player-picker UI (that's an explicit
+follow-up UI Agent task, not built here). It now loads `PlayerStorage.getAll()`
+on mount and defaults to the oldest-created player
+(`players.sort((a,b) => a.createdAt - b.createdAt)[0].id`) — same
+fallback-selection pattern `AchievementsScreen.tsx` already uses — stored in
+a new `activePlayerId` state, and passes it through to `getBest`/`setBest`.
+If there are zero players on the device, `activePlayerId` stays `null` and
+the screen simply never calls `setBest` (best streak still tracks in local
+state for the session, just doesn't persist) — a `Player`-less state the app
+generally doesn't otherwise support outside guests, but it doesn't crash.
+Clearly commented in the file as a placeholder for the UI Agent's real
+picker.
+
+**What the follow-up UI Agent needs:** build a player-picker on
+`CheckoutTrainerScreen.tsx` (reuse the single-select pattern from
+`GameSetupScreen` or `AchievementsScreen`'s player chips) that replaces the
+placeholder `activePlayerId` default with real user selection, then calls
+`CheckoutTrainerStorage.getBest(pickedId)`/`.setBest(pickedId, next)` — the
+storage interface itself is done and stable, no further storage-shape
+changes anticipated for this feature.
+
+### Verification
+
+`npx tsc --noEmit` is clean for all files I touched
+(`src/logic/achievements.ts`, `src/storage/storage.ts`,
+`src/screens/CheckoutTrainerScreen.tsx`). Note: at the time of this run,
+`src/screens/HomeScreen.tsx` had 4 pre-existing `TS2304: Cannot find name
+'bannerCount'` errors from a concurrent agent's in-progress, uncommitted
+edit to that file (confirmed via `git status`/`git diff` — I did not touch
+`HomeScreen.tsx`, per this round's explicit "do not touch" list). Filtering
+those out (`npx tsc --noEmit 2>&1 | grep -v HomeScreen.tsx`) showed zero
+remaining errors. Not my file to fix this round; flagging so it isn't
+mistaken for something introduced by this work.
+
+### Commits
+
+- `Logic Agent: add newAchievementsFromMatch diffing wrapper` — `src/logic/achievements.ts`
+- `Logic Agent: make CheckoutTrainerStorage per-player, migration-safe` — `src/storage/storage.ts`, `src/screens/CheckoutTrainerScreen.tsx`
