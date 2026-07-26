@@ -1,4 +1,5 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -12,13 +13,14 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { Screen } from '../components/Screen';
 import { SwitchRow } from '../components/SwitchRow';
 import { setSoundEnabled } from '../sound/soundManager';
+import { RootStackParamList } from '../navigation/types';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, spacing } from '../theme';
 import { STAGGER_MS } from '../theme/motion';
 import { Player } from '../types';
 
 export function SettingsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [settings, setSettings] = useState<AppSettings>(SettingsStorage.defaults);
   const [players, setPlayers] = useState<Player[]>([]);
 
@@ -136,7 +138,20 @@ export function SettingsScreen() {
       <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(260)}>
       <Card style={{ marginBottom: spacing.xl }}>
         <Text style={styles.sectionTitle}>DATA</Text>
-        <Button label="CLEAR MATCH HISTORY" variant="danger" onPress={clearHistory} />
+        <PressableScale
+          onPress={() => navigation.navigate('BackupRestore')}
+          haptic="light"
+          scaleTo={0.98}
+          style={styles.navRow}
+        >
+          <Icon name="share" size={18} color={colors.primaryHot} />
+          <View style={styles.navRowText}>
+            <Text style={styles.navRowTitle}>Backup & Restore</Text>
+            <Text style={styles.navRowSubtitle}>Export or import your players, matches & settings</Text>
+          </View>
+          <Icon name="chevronRight" size={18} color={colors.textFaint} />
+        </PressableScale>
+        <Button label="CLEAR MATCH HISTORY" variant="danger" onPress={clearHistory} style={{ marginTop: spacing.lg }} />
       </Card>
       </Animated.View>
 
@@ -175,6 +190,31 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     padding: spacing.xs,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.bgCardAlt,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  navRowText: {
+    flex: 1,
+  },
+  navRowTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.bodySemibold,
+    fontSize: 14,
+  },
+  navRowSubtitle: {
+    color: colors.textMuted,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    marginTop: 2,
   },
   about: {
     textAlign: 'center',

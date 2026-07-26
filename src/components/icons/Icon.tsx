@@ -55,7 +55,10 @@ export type IconName =
   | 'trendUp'
   | 'trendDown'
   | 'trendFlat'
-  | 'search';
+  | 'search'
+  | 'share'
+  | 'download'
+  | 'upload';
 
 interface IconProps {
   name: IconName;
@@ -120,6 +123,9 @@ const MAP: Record<IconName, Glyph> = {
   trendDown: { set: 'feather', glyph: 'trending-down' },
   trendFlat: { set: 'feather', glyph: 'minus' },
   search: { set: 'feather', glyph: 'search' },
+  share: { set: 'feather', glyph: 'share-2' },
+  download: { set: 'feather', glyph: 'download' },
+  upload: { set: 'feather', glyph: 'upload' },
 };
 
 export function Icon({ name, size = 24, color = '#FFFFFF' }: IconProps) {
