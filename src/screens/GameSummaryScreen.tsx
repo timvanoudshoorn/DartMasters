@@ -22,6 +22,7 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
+import { newPersonalBestsFromMatch, PersonalBestId, PersonalBestRecord } from '../logic/personalBests';
 import { recordMatchResult } from '../logic/tournament';
 import { RematchConfig, RootStackParamList } from '../navigation/types';
 import { haptic } from '../sound/haptics';
@@ -71,6 +72,19 @@ function buildRematchConfig(match: MatchRecord): RematchConfig {
 
 type Route = { params: { matchId: string } };
 
+// Which of this screen's existing X01 stat-cell labels each PB category
+// corresponds to, so a "new best" reads as "this specific number is a
+// record" rather than a disconnected banner. `bestVisit` and
+// `longestWinStreak` have no matching cell on this screen (highest single
+// visit isn't shown for X01, and win-streak isn't shown at all) — those
+// two render as small standalone chips instead (see `extraNewBests` below).
+const NEW_BEST_CELL_LABEL: Partial<Record<PersonalBestId, string>> = {
+  highestCheckout: 'Highest CO',
+  bestThreeDartAvg: '3-Dart Avg',
+  most180sInMatch: '180s',
+  bestLegDarts: 'Best Leg',
+};
+
 // Reveal choreography (ms from mount): overline → trophy → name → stats → actions.
 const REVEAL = {
   overline: 80,
@@ -86,6 +100,11 @@ export function GameSummaryScreen() {
   const route = useRoute() as unknown as Route;
   const [match, setMatch] = useState<MatchRecord | null>(null);
   const [players, setPlayers] = useState<Record<string, Player>>({});
+  // New personal-best records the winner set *by this match*, sourced the
+  // same way PlayerProfileScreen sources `computePersonalBests`'s input —
+  // the full MatchStorage history, already loaded below for this screen's
+  // own lookup. Empty array (the common case) renders nothing extra.
+  const [newBests, setNewBests] = useState<PersonalBestRecord[]>([]);
   const [tournamentResult, setTournamentResult] = useState<{
     context: TournamentMatchContext;
     tournament: Tournament;
@@ -99,11 +118,15 @@ export function GameSummaryScreen() {
         const map: Record<string, Player> = {};
         all.forEach((p) => (map[p.id] = p));
         setPlayers(map);
+        setNewBests(
+          found?.winnerId ? newPersonalBestsFromMatch(matches, found.winnerId, found.id) : []
+        );
       })
       .catch((err) => {
         console.error('[GameSummaryScreen] Failed to load data:', err);
         setMatch(null);
         setPlayers({});
+        setNewBests([]);
       });
   }, [route.params.matchId]);
 
@@ -236,6 +259,14 @@ export function GameSummaryScreen() {
         if (!r) return null;
         const isWinner = id === match.winnerId;
         const delay = R.stats + cardIndex * R.statStep;
+        // Only the winner can carry new-best badges (newBests was computed
+        // for match.winnerId only) — losers never show any.
+        const newBestCellLabels = isWinner
+          ? new Set(newBests.map((nb) => NEW_BEST_CELL_LABEL[nb.id]).filter((l): l is string => !!l))
+          : null;
+        const extraNewBests = isWinner
+          ? newBests.filter((nb) => nb.id === 'bestVisit' || nb.id === 'longestWinStreak')
+          : [];
         return (
           <Animated.View key={id} entering={FadeInDown.delay(delay).springify().damping(16)}>
             <Card
@@ -252,16 +283,29 @@ export function GameSummaryScreen() {
                 )}
               </View>
 
+              {extraNewBests.length > 0 && (
+                <View style={styles.extraBestsRow}>
+                  {extraNewBests.map((nb) => (
+                    <View key={nb.id} style={styles.extraBestChip}>
+                      <Icon name="medal" size={11} color={COLORS.positive} />
+                      <Text style={styles.extraBestText}>
+                        NEW BEST · {nb.label} {nb.formatted}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {isX01 && (
                 <>
                   <View style={styles.statsGrid}>
-                    <RevealStat label="3-Dart Avg" value={r.threeDartAvg} format={(n) => n.toFixed(1)} delay={delay} hot />
+                    <RevealStat label="3-Dart Avg" value={r.threeDartAvg} format={(n) => n.toFixed(1)} delay={delay} hot newBest={newBestCellLabels?.has('3-Dart Avg')} />
                     <RevealStat label="First 9" value={r.firstNineAvg || null} format={(n) => n.toFixed(1)} delay={delay} />
-                    <RevealStat label="Highest CO" value={r.highestCheckout || null} delay={delay} hot />
+                    <RevealStat label="Highest CO" value={r.highestCheckout || null} delay={delay} hot newBest={newBestCellLabels?.has('Highest CO')} />
                     <RevealStat label="Legs" value={r.legsWon} delay={delay} />
                   </View>
                   <View style={[styles.statsGrid, { marginTop: spacing.sm }]}>
-                    <RevealStat label="180s" value={r.oneEighties} delay={delay} hot={r.oneEighties > 0} />
+                    <RevealStat label="180s" value={r.oneEighties} delay={delay} hot={r.oneEighties > 0} newBest={newBestCellLabels?.has('180s')} />
                     <RevealStat label="100+" value={r.count100Plus} delay={delay} />
                     <RevealStat
                       label="Checkout %"
@@ -269,7 +313,7 @@ export function GameSummaryScreen() {
                       format={(n) => `${Math.round(n)}%`}
                       delay={delay}
                     />
-                    <RevealStat label="Best Leg" value={r.bestLegDarts ?? null} delay={delay} />
+                    <RevealStat label="Best Leg" value={r.bestLegDarts ?? null} delay={delay} newBest={newBestCellLabels?.has('Best Leg')} />
                   </View>
                 </>
               )}
@@ -342,15 +386,31 @@ function RevealStat({
   format,
   delay,
   hot,
+  newBest,
 }: {
   label: string;
   value: number | null;
   format?: (n: number) => string;
   delay: number;
   hot?: boolean;
+  /** This exact number is a personal best newly set by this match — takes
+   * visual precedence over `hot` (record beats merely-notable). */
+  newBest?: boolean;
 }) {
+  const isNewBest = !!newBest && value !== null;
   return (
-    <View style={[styles.statCell, hot && value !== null ? styles.statCellHot : null]}>
+    <View
+      style={[
+        styles.statCell,
+        hot && value !== null ? styles.statCellHot : null,
+        isNewBest ? styles.statCellNewBest : null,
+      ]}
+    >
+      {isNewBest && (
+        <View style={styles.newBestBadge}>
+          <Icon name="medal" size={11} color={COLORS.positive} />
+        </View>
+      )}
       {value === null ? (
         <Text style={[styles.statValue, { color: colors.textFaint }]}>—</Text>
       ) : (
@@ -359,10 +419,11 @@ function RevealStat({
           delay={delay + reducedMs(150)}
           duration={reducedMs(650) || 150}
           format={format}
-          style={[styles.statValue, hot ? { color: COLORS.accentHot } : null]}
+          style={[styles.statValue, hot ? { color: COLORS.accentHot } : null, isNewBest ? { color: COLORS.positive } : null]}
         />
       )}
       <Text style={styles.statLabel}>{label}</Text>
+      {isNewBest && <Text style={styles.newBestCaption}>NEW BEST</Text>}
     </View>
   );
 }
@@ -521,6 +582,47 @@ const styles = StyleSheet.create({
   },
   statCellHot: {
     borderColor: 'rgba(193,54,32,0.3)',
+  },
+  statCellNewBest: {
+    backgroundColor: COLORS.positiveGlow,
+    borderColor: COLORS.positiveBorder,
+  },
+  newBestBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+  },
+  newBestCaption: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 7,
+    color: COLORS.positive,
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    textAlign: 'center',
+  },
+  extraBestsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  extraBestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.positiveGlow,
+    borderWidth: 1,
+    borderColor: COLORS.positiveBorder,
+    borderRadius: radius.full,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  extraBestText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: COLORS.positive,
+    letterSpacing: 0.3,
   },
   statValue: {
     fontFamily: fonts.display,
