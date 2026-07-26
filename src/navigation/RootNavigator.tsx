@@ -5,6 +5,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { ChallengesScreen } from '../screens/ChallengesScreen';
 import { LeaderboardScreen } from '../screens/LeaderboardScreen';
 import { AchievementsScreen } from '../screens/AchievementsScreen';
+import { CheckoutTrainerScreen } from '../screens/CheckoutTrainerScreen';
 import { ModeSelectScreen } from '../screens/ModeSelectScreen';
 import { GameSetupScreen } from '../screens/GameSetupScreen';
 import { BullOffScreen } from '../screens/BullOffScreen';
@@ -52,6 +53,7 @@ export function RootNavigator() {
         <Stack.Screen name="Challenges" component={ChallengesScreen} />
         <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
         <Stack.Screen name="Achievements" component={AchievementsScreen} />
+        <Stack.Screen name="CheckoutTrainer" component={CheckoutTrainerScreen} />
         <Stack.Screen name="ModeSelect" component={ModeSelectScreen} />
         <Stack.Screen name="GameSetup" component={GameSetupScreen} />
         {/* Stepping up to the oche: the match itself fades in rather than sliding. */}

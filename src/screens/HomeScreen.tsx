@@ -238,6 +238,12 @@ export function HomeScreen() {
             onPress={() => navigation.navigate('Achievements')}
           />
           <NavTile
+            icon="target"
+            title="Checkout Trainer"
+            subtitle="Solo finish drills"
+            onPress={() => navigation.navigate('CheckoutTrainer')}
+          />
+          <NavTile
             icon="settings"
             title="Settings"
             subtitle="Preferences"

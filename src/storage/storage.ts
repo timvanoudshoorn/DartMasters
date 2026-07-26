@@ -5,6 +5,7 @@ const PLAYERS_KEY = '@dartmasters/players';
 const MATCHES_KEY = '@dartmasters/matches';
 const SETTINGS_KEY = '@dartmasters/settings';
 const BULL_OFF_LOG_KEY = '@dartmasters/bullOffLog';
+const CHECKOUT_TRAINER_BEST_KEY = '@dartmasters/checkoutTrainerBest';
 
 export interface AppSettings {
   defaultOutMode: OutMode;
@@ -98,4 +99,15 @@ export const SettingsStorage = {
     await writeJson(SETTINGS_KEY, settings);
   },
   defaults: DEFAULT_SETTINGS,
+};
+
+// Solo "Checkout Trainer" drill — tracks only a best-streak high score,
+// separate from match history and player stats.
+export const CheckoutTrainerStorage = {
+  async getBest(): Promise<number> {
+    return readJson<number>(CHECKOUT_TRAINER_BEST_KEY, 0);
+  },
+  async setBest(best: number): Promise<void> {
+    await writeJson(CHECKOUT_TRAINER_BEST_KEY, best);
+  },
 };
