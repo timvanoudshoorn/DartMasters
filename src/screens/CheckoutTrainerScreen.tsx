@@ -17,7 +17,7 @@ import { evaluateDart } from '../logic/x01';
 import { RootStackParamList } from '../navigation/types';
 import { haptic, hapticPattern } from '../sound/haptics';
 import { playSound } from '../sound/soundManager';
-import { CheckoutTrainerStorage } from '../storage/storage';
+import { CheckoutTrainerStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { Dart } from '../types';
 
@@ -47,12 +47,26 @@ export function CheckoutTrainerScreen() {
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [result, setResult] = useState<ResultKind>(null);
+  // PLACEHOLDER: CheckoutTrainerStorage is now per-player, but this screen has
+  // no player-picker UI yet (that's a follow-up UI Agent task). Default
+  // silently to the oldest-created player on the device, mirroring
+  // AchievementsScreen's fallback-selection pattern, so the screen keeps
+  // working and compiling in the meantime. Replace with a real picker.
+  const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const { shakeStyle, triggerShake } = useShake();
 
   useEffect(() => {
-    CheckoutTrainerStorage.getBest()
-      .then(setBestStreak)
+    PlayerStorage.getAll()
+      .then((players) => {
+        if (players.length === 0) return null;
+        const defaultPlayerId = players.slice().sort((a, b) => a.createdAt - b.createdAt)[0].id;
+        setActivePlayerId(defaultPlayerId);
+        return CheckoutTrainerStorage.getBest(defaultPlayerId);
+      })
+      .then((best) => {
+        if (best !== null && best !== undefined) setBestStreak(best);
+      })
       .catch((err) => {
         console.error('[CheckoutTrainerScreen] Failed to load best streak:', err);
       });
@@ -94,9 +108,11 @@ export function CheckoutTrainerScreen() {
         const next = s + 1;
         setBestStreak((best) => {
           if (next > best) {
-            CheckoutTrainerStorage.setBest(next).catch((err) => {
-              console.error('[CheckoutTrainerScreen] Failed to save best streak:', err);
-            });
+            if (activePlayerId) {
+              CheckoutTrainerStorage.setBest(activePlayerId, next).catch((err) => {
+                console.error('[CheckoutTrainerScreen] Failed to save best streak:', err);
+              });
+            }
             return next;
           }
           return best;

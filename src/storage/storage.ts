@@ -108,13 +108,68 @@ export const SettingsStorage = {
   defaults: DEFAULT_SETTINGS,
 };
 
-// Solo "Checkout Trainer" drill — tracks only a best-streak high score,
-// separate from match history and player stats.
+// Solo "Checkout Trainer" drill — tracks only a best-streak high score per
+// player, separate from match history and player stats.
+//
+// Shape history: originally a single global number under
+// CHECKOUT_TRAINER_BEST_KEY, shared across every profile on the device (a
+// bug — every other stat in the app is keyed per-player). Now a
+// `Record<playerId, number>` blob under the *same* key (simplest migration:
+// no new key to introduce, and `readJson`'s try/catch already treats a
+// pre-existing raw number as unparseable-as-the-new-shape... actually it
+// would parse fine as JSON but produce the wrong TS shape, so we guard
+// explicitly below instead of relying on that).
+//
+// Migration: on first read, if the stored value under the key is still the
+// old shape (a plain number, from before this change), it's carried forward
+// under a reserved `LEGACY_FALLBACK_FIELD` inside the new blob rather than
+// discarded outright — so every player who doesn't yet have their own
+// per-player entry can still fall back to it, not just whichever player
+// happens to read first. This is intentionally generous (every un-migrated
+// player starts from the old shared best) rather than strict, because the
+// alternative (resetting everyone to 0) is a silent regression a player
+// would experience as "my best streak got deleted." Once a specific player
+// has their own real entry (after any `setBest` call for them), that
+// player's own value always wins over the legacy fallback and the legacy
+// field is never consulted again for that player — but it's left in place
+// (not deleted) so other, not-yet-migrated players can still use it. The
+// old key is reused rather than retired to avoid adding a second key naming
+// scheme to this file. `LEGACY_FALLBACK_FIELD` is a bracket-prefixed
+// sentinel that real `Player.id` values (uuid-shaped strings elsewhere in
+// this file) will never collide with.
+const LEGACY_FALLBACK_FIELD = '__legacyGlobalBest__';
+
+interface CheckoutTrainerBestBlob {
+  [playerId: string]: number;
+}
+
+function isLegacyGlobalNumber(raw: unknown): raw is number {
+  return typeof raw === 'number';
+}
+
 export const CheckoutTrainerStorage = {
-  async getBest(): Promise<number> {
-    return readJson<number>(CHECKOUT_TRAINER_BEST_KEY, 0);
+  /** Best streak for a specific player. Falls back to the pre-migration
+   * global best (until that player sets their own value) rather than
+   * silently resetting to 0. */
+  async getBest(playerId: string): Promise<number> {
+    const raw = await readJson<CheckoutTrainerBestBlob | number>(CHECKOUT_TRAINER_BEST_KEY, {});
+
+    if (isLegacyGlobalNumber(raw)) {
+      // Pure legacy shape still on disk (no player has migrated yet) —
+      // every player starts from it.
+      return raw;
+    }
+
+    if (playerId in raw) return raw[playerId];
+    if (LEGACY_FALLBACK_FIELD in raw) return raw[LEGACY_FALLBACK_FIELD];
+    return 0;
   },
-  async setBest(best: number): Promise<void> {
-    await writeJson(CHECKOUT_TRAINER_BEST_KEY, best);
+  async setBest(playerId: string, best: number): Promise<void> {
+    const raw = await readJson<CheckoutTrainerBestBlob | number>(CHECKOUT_TRAINER_BEST_KEY, {});
+    const blob: CheckoutTrainerBestBlob = isLegacyGlobalNumber(raw)
+      ? { [LEGACY_FALLBACK_FIELD]: raw }
+      : { ...raw };
+    blob[playerId] = best;
+    await writeJson(CHECKOUT_TRAINER_BEST_KEY, blob);
   },
 };
