@@ -9,6 +9,7 @@ import { Icon, IconName } from '../components/icons/Icon';
 import { PlayerAvatar } from '../components/PlayerAvatar';
 import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
+import { TabBar } from '../components/TabBar';
 import { aggregateCareerStats } from '../logic/stats';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
@@ -124,7 +125,7 @@ function buildRows(category: CategoryKey, players: Player[], matches: MatchRecor
   return rows;
 }
 
-const RANK_COLORS = ['#E8C84A', '#C7CDD6', '#C98A4F'];
+const RANK_COLORS = [colors.medalGold, colors.medalSilver, colors.medalBronze];
 
 /** Mirrors the `display` formatting in buildRows, for CountUp's in-flight text. */
 function formatRowValue(category: CategoryKey, n: number): string {
@@ -173,17 +174,7 @@ export function LeaderboardScreen() {
       <Header title="Leaderboard" subtitle={`${rows.length} ranked`} onBack={() => navigation.goBack()} />
 
       <View style={styles.periodRow}>
-        {PERIODS.map((p) => (
-          <PressableScale
-            key={p.key}
-            onPress={() => setPeriod(p.key)}
-            haptic="tick"
-            scaleTo={0.95}
-            style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
-          >
-            <Text style={[styles.periodLabel, period === p.key && styles.periodLabelActive]}>{p.label}</Text>
-          </PressableScale>
-        ))}
+        <TabBar options={PERIODS} value={period} onChange={setPeriod} />
       </View>
 
       <ScrollView
@@ -273,28 +264,7 @@ export function LeaderboardScreen() {
 
 const styles = StyleSheet.create({
   periodRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.bgCardAlt,
-    borderRadius: radius.full,
-    padding: 4,
     marginBottom: spacing.md,
-  },
-  periodBtn: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radius.full,
-  },
-  periodBtnActive: {
-    backgroundColor: colors.primary,
-  },
-  periodLabel: {
-    fontFamily: fonts.bodyExtraBold,
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  periodLabelActive: {
-    color: colors.textPrimary,
   },
   categoryRow: {
     gap: spacing.sm,
