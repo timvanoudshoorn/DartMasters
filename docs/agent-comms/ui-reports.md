@@ -416,3 +416,45 @@ can interleave like this.
 ### Final check
 
 `npx tsc --noEmit` clean after both tasks.
+
+---
+
+## Report: NEW BEST badge on GameSummaryScreen (collab-pb-celebration Stage 2)
+
+**What it looks like:** on the win screen, if the winner set one or more
+new personal bests in the match that just finished, the relevant number(s)
+in their stat-card grid get a visual "this is a record" treatment: the
+cell's background/border switch from the normal dark card tone to a soft
+green wash (same green already used elsewhere in the app for "good news,"
+e.g. the checkout banner during play), the number itself turns green
+instead of its usual white/ember color, a tiny medal icon appears in the
+cell's top-right corner, and a small green "NEW BEST" caption appears
+under the stat's existing label (e.g. under "Highest CO"). This can
+happen to any combination of: 3-Dart Avg, Highest CO, 180s, Best Leg —
+whichever numbers were actually records this match, so it could be one
+cell or several, never a generic single banner disconnected from a number.
+
+Two record types don't have a matching cell on this screen at all
+(longest win streak, and highest single 3-dart visit) — when the winner
+sets one of those, a small green pill/chip appears just under their name
+and avatar at the top of their card, reading something like "NEW BEST ·
+Longest Win Streak 8 wins."
+
+If nothing new was set (true for most wins), nothing changes — the win
+screen looks and behaves exactly as it did before this feature.
+
+**Where:** `src/screens/GameSummaryScreen.tsx` only. No new components,
+no new colors — reused the app's existing green "positive" tokens and the
+existing `medal` icon.
+
+**Flags for Head Agent:**
+- This is static visual only, per the Stage-2 scope — no new haptic or
+  sound fires when a badge appears, and it has no dedicated entrance
+  animation of its own (it just rides along with whatever the parent stat
+  cell/card is already doing). That's intentionally left for the
+  Animation Agent's Stage 3 pass, per the collab doc.
+- Judgment calls (badge all qualifying categories rather than just one;
+  chip treatment for the two categories without a home cell) are
+  documented with reasoning in `docs/agent-comms/collab-pb-celebration.md`
+  under "UI Agent — badge implementation" for review.
+- `npx tsc --noEmit` clean.

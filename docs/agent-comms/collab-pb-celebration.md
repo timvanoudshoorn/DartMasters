@@ -121,7 +121,67 @@ Result length 1+ → could show one badge per category, or just the single
 
 ## UI Agent — badge implementation (fill in below)
 
-*(pending — do not start until the Logic section above is filled in)*
+**File:** `src/screens/GameSummaryScreen.tsx` only (no other files touched).
+
+**Data wiring:** the screen's existing data-loading effect already calls
+`Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])`. Added one
+line after `found` is resolved: `found?.winnerId ? newPersonalBestsFromMatch(matches,
+found.winnerId, found.id) : []`, stored in new state `newBests`. Same
+`matches` array `PlayerProfileScreen` sources `computePersonalBests` from
+(`MatchStorage.getAll()`) — no new storage call pattern introduced. Only
+computed for `match.winnerId`, so losers never carry badges and a
+genuine tie (`winnerId` null) produces an empty array with zero extra
+rendering, same as any other non-new-best win.
+
+**Badging approach — all matching categories, not just one:** each PB
+category is visually independent (a checkout record and a 3-dart-avg
+record are different facts about different numbers), so I badge every
+category returned, not just the single most impressive one. Since
+`computePersonalBests`/`newPersonalBestsFromMatch` already dedupes to at
+most one entry per category, and this screen only shows one X01 stat
+grid, in practice this is at most 4 badged cells + up to 2 chips — never
+visually noisy.
+
+**Mapping categories to the existing UI:**
+- `highestCheckout` → "Highest CO" cell
+- `bestThreeDartAvg` → "3-Dart Avg" cell
+- `most180sInMatch` → "180s" cell
+- `bestLegDarts` → "Best Leg" cell
+
+These four get a `newBest` prop on `RevealStat`: cell background/border
+switches to `COLORS.positiveGlow`/`positiveBorder` (the same green-wash
+tokens `CheckoutBanner` already uses for "good news," reused rather than
+inventing a new wash), the counted-up value renders in `COLORS.positive`
+(overriding the ember "hot" color — record beats merely-notable), a small
+corner `medal` icon badge, and a "NEW BEST" caption line under the stat
+label.
+
+**Categories with no matching visible cell — `bestVisit` and
+`longestWinStreak`:** X01's stat grid on this screen shows 3-Dart Avg,
+First 9, Highest CO, Legs, 180s, 100+, Checkout %, Best Leg — no "highest
+single visit" cell exists here (Cricket's grid shows "Best Turn" but
+`bestVisit` per the logic contract only ever fires for X01 matches, so
+it can never line up with that Cricket-only cell), and no win-streak cell
+exists at all. Rather than shoehorning a new full stat card into the grid
+(more layout risk, and these are rarer/lower-signal for a first version),
+I added a small pill-chip row (reusing the same green wash + `medal` icon,
+sized like a compact badge rather than a full `StatPill`) directly under
+the winner's name/avatar header, one chip per category, reading e.g.
+"NEW BEST · Longest Win Streak 8 wins". Renders only when 1+ such entries
+exist for the winner.
+
+**Empty-array no-op confirmed:** with `newBests = []` (the default/common
+case), `newBestCellLabels` is an empty Set, `extraNewBests` is `[]`, no
+extra JSX renders, and every `RevealStat` call passes `newBest={undefined}`
+→ falsy → identical styles/output to before this change. Verified via
+`npx tsc --noEmit` (clean) and a read-through of the diff — the existing
+ceremony (reveal timing, `CountUp`, `Confetti`, winner name slam) is
+untouched.
+
+**Explicitly out of scope (left for Animation Agent, Stage 3):** no new
+haptic or sound fires for the badge, and its entrance is whatever the
+parent `RevealStat`'s existing `CountUp`/card `FadeInDown` already does —
+no dedicated spring/stagger/haptic was added for the badge itself.
 
 ---
 
