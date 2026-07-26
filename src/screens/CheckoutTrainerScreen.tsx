@@ -7,9 +7,11 @@ import { Button } from '../components/Button';
 import { CheckoutBanner } from '../components/CheckoutBanner';
 import { DartPad } from '../components/DartPad';
 import { DartSlots } from '../components/DartSlots';
+import { EmptyState } from '../components/EmptyState';
 import { ScreenFlash } from '../components/effects/ScreenFlash';
 import { useShake } from '../components/effects/useShake';
 import { GameHud } from '../components/GameHud';
+import { PlayerFilterChips } from '../components/PlayerFilterChips';
 import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { getCheckoutSuggestion } from '../data/checkoutTable';
@@ -19,7 +21,7 @@ import { haptic, hapticPattern } from '../sound/haptics';
 import { playSound } from '../sound/soundManager';
 import { CheckoutTrainerStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
-import { Dart } from '../types';
+import { Dart, Player } from '../types';
 
 // Every score 2-170 that has a valid double-out finish within 3 darts —
 // the pool the trainer draws its targets from. Standard checkout table,
@@ -47,30 +49,39 @@ export function CheckoutTrainerScreen() {
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [result, setResult] = useState<ResultKind>(null);
-  // PLACEHOLDER: CheckoutTrainerStorage is now per-player, but this screen has
-  // no player-picker UI yet (that's a follow-up UI Agent task). Default
-  // silently to the oldest-created player on the device, mirroring
-  // AchievementsScreen's fallback-selection pattern, so the screen keeps
-  // working and compiling in the meantime. Replace with a real picker.
+  const [players, setPlayers] = useState<Player[]>([]);
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const { shakeStyle, triggerShake } = useShake();
 
   useEffect(() => {
     PlayerStorage.getAll()
-      .then((players) => {
-        if (players.length === 0) return null;
-        const defaultPlayerId = players.slice().sort((a, b) => a.createdAt - b.createdAt)[0].id;
+      .then((all) => {
+        setPlayers(all);
+        if (all.length === 0) return;
+        const defaultPlayerId = all.slice().sort((a, b) => a.createdAt - b.createdAt)[0].id;
         setActivePlayerId(defaultPlayerId);
-        return CheckoutTrainerStorage.getBest(defaultPlayerId);
       })
-      .then((best) => {
-        if (best !== null && best !== undefined) setBestStreak(best);
-      })
+      .catch((err) => {
+        console.error('[CheckoutTrainerScreen] Failed to load players:', err);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!activePlayerId) {
+      setBestStreak(0);
+      return;
+    }
+    CheckoutTrainerStorage.getBest(activePlayerId)
+      .then((best) => setBestStreak(best ?? 0))
       .catch((err) => {
         console.error('[CheckoutTrainerScreen] Failed to load best streak:', err);
       });
-  }, []);
+    // Switching players resets the in-progress streak — it belongs to whoever
+    // was throwing, not the newly selected player.
+    setStreak(0);
+    setResult(null);
+  }, [activePlayerId]);
 
   useEffect(() => {
     return () => {
@@ -178,18 +189,30 @@ export function CheckoutTrainerScreen() {
         }
       />
 
-      <View style={styles.statsRow}>
-        <View style={styles.statBox}>
-          <CountUp value={streak} duration={400} style={styles.statValue} />
-          <Text style={styles.statLabel}>STREAK</Text>
-        </View>
-        <View style={styles.statBox}>
-          <CountUp value={bestStreak} duration={400} style={styles.statValue} />
-          <Text style={styles.statLabel}>BEST</Text>
-        </View>
-      </View>
+      {players.length === 0 ? (
+        <EmptyState
+          icon="star"
+          title="No players yet"
+          subtitle="Add a player profile to track your checkout streak"
+        />
+      ) : (
+        <>
+          {players.length > 1 && (
+            <PlayerFilterChips players={players} selectedId={activePlayerId} onSelect={setActivePlayerId} />
+          )}
 
-      <View style={styles.spotlight}>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <CountUp value={streak} duration={400} style={styles.statValue} />
+              <Text style={styles.statLabel}>STREAK</Text>
+            </View>
+            <View style={styles.statBox}>
+              <CountUp value={bestStreak} duration={400} style={styles.statValue} />
+              <Text style={styles.statLabel}>BEST</Text>
+            </View>
+          </View>
+
+          <View style={styles.spotlight}>
         <Text style={styles.targetOverline}>CHECKOUT</Text>
         <Animated.View
           style={[
@@ -232,6 +255,8 @@ export function CheckoutTrainerScreen() {
           <Button label="Done" onPress={() => navigation.goBack()} variant="outline" style={{ flex: 1 }} />
         </View>
       </View>
+        </>
+      )}
     </Screen>
   );
 }
