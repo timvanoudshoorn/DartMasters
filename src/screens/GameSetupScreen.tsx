@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Button } from '../components/Button';
@@ -16,7 +16,7 @@ import { Screen } from '../components/Screen';
 import { SwitchRow } from '../components/SwitchRow';
 import { getGameModeInfo } from '../data/gameModes';
 import { BOT_DIFFICULTIES, BOT_PROFILES } from '../logic/bot';
-import { RootStackParamList } from '../navigation/types';
+import { RematchConfig, RootStackParamList } from '../navigation/types';
 import { PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, playerColor, radius, spacing, typography } from '../theme';
 import { reducedMs, staggerDelay } from '../theme/motion';
@@ -24,7 +24,7 @@ import { BotDifficulty, GameConfig, InMode, OutMode, Player } from '../types';
 import { generateId } from '../utils/id';
 import { shuffled } from '../utils/shuffle';
 
-type Route = { params: { gameType: GameConfig['gameType'] } };
+type Route = { params: { gameType: GameConfig['gameType']; rematch?: RematchConfig } };
 
 const MAX_PLAYERS = 8;
 const GUEST_AVATARS = [
@@ -51,14 +51,16 @@ interface GuestEntry {
 export function GameSetupScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute() as unknown as Route;
-  const { gameType } = route.params;
+  const { gameType, rematch } = route.params;
   const modeInfo = getGameModeInfo(gameType);
 
   const [players, setPlayers] = useState<Player[]>([]);
+  const [playersLoaded, setPlayersLoaded] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [guests, setGuests] = useState<GuestEntry[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [pickingBotDifficulty, setPickingBotDifficulty] = useState(false);
+  const rematchApplied = useRef(false);
 
   const [legsToWin, setLegsToWin] = useState(3);
   const [setsToWin, setSetsToWin] = useState(1);
@@ -74,15 +76,28 @@ export function GameSetupScreen() {
   useFocusEffect(
     useCallback(() => {
       PlayerStorage.getAll()
-        .then(setPlayers)
+        .then((all) => {
+          setPlayers(all);
+          setPlayersLoaded(true);
+        })
         .catch((err) => {
           console.error('[GameSetupScreen] Failed to load players:', err);
           setPlayers([]);
+          setPlayersLoaded(true);
         });
     }, [])
   );
 
   useEffect(() => {
+    // A rematch prefill carries its own rule settings from the finished
+    // match — skip the stored defaults so we don't clobber them.
+    if (rematch) {
+      setLegsToWin(gameType === 'aroundTheClock' ? 1 : rematch.legsToWin);
+      setSetsToWin(rematch.setsToWin);
+      setOutMode(rematch.outMode);
+      setInMode(rematch.inMode);
+      return;
+    }
     SettingsStorage.get()
       .then((s) => {
         setLegsToWin(gameType === 'aroundTheClock' ? 1 : s.defaultLegsToWin);
@@ -96,6 +111,34 @@ export function GameSetupScreen() {
         setSetsToWin(1);
       });
   }, []);
+
+  // Prefill roster (players + guests/bots) from the rematch config once the
+  // saved-players list has loaded, so we can tell which rematch playerIds are
+  // still valid saved players vs. transient guest/bot ids carried in the
+  // config itself. Runs once — after that this screen is fully user-editable
+  // like any other setup, same as a normal launch.
+  useEffect(() => {
+    if (!rematch || rematchApplied.current || !playersLoaded) return;
+    rematchApplied.current = true;
+
+    const knownPlayerIds = new Set(players.map((p) => p.id));
+    const rematchGuests: GuestEntry[] = Object.entries(rematch.guestPlayers ?? {}).map(([id, g]) => ({
+      id,
+      name: g.name,
+      color: g.color,
+      avatar: g.avatar ?? iconAvatar('target'),
+      isBot: g.isBot,
+      botDifficulty: g.botDifficulty,
+    }));
+    const guestIds = new Set(rematchGuests.map((g) => g.id));
+    // Drop any playerId that's neither a still-existing saved player nor a
+    // guest/bot carried in this rematch config (e.g. the player was deleted
+    // from the roster since the match was played).
+    const validIds = rematch.playerIds.filter((id) => knownPlayerIds.has(id) || guestIds.has(id));
+
+    if (rematchGuests.length) setGuests(rematchGuests.filter((g) => validIds.includes(g.id)));
+    if (validIds.length) setSelectedIds(validIds);
+  }, [rematch, playersLoaded, players]);
 
   const atCap = selectedIds.length >= MAX_PLAYERS;
 

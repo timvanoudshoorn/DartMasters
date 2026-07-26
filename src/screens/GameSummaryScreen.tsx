@@ -23,7 +23,7 @@ import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
 import { recordMatchResult } from '../logic/tournament';
-import { RootStackParamList } from '../navigation/types';
+import { RematchConfig, RootStackParamList } from '../navigation/types';
 import { haptic } from '../sound/haptics';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { PendingTournamentMatchStorage, TournamentStorage } from '../storage/tournament';
@@ -31,8 +31,43 @@ import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS, FONT } from '../theme/colors';
 import { reducedMs } from '../theme/motion';
 import { isReducedMotionEnabled } from '../theme/motionPreference';
-import { MatchRecord, Player, Tournament, TournamentMatchContext } from '../types';
+import { GameConfig, MatchRecord, Player, Tournament, TournamentMatchContext } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
+
+/** Reconstructs a rematch prefill from a finished match. `MatchRecord` only
+ * retains the guest/bot *identity* maps (name/color/avatar + which ids were
+ * bots) via `guestIdentityMaps` — not the original per-guest `botDifficulty`
+ * — so bot opponents are rebuilt at a fixed middle difficulty rather than
+ * omitted outright; still fully editable on the setup screen afterward. */
+function buildRematchConfig(match: MatchRecord): RematchConfig {
+  const guestIds = Object.keys(match.guestNames ?? {});
+  const guestPlayers: GameConfig['guestPlayers'] = guestIds.length
+    ? Object.fromEntries(
+        guestIds.map((id) => {
+          const isBot = match.botPlayerIds?.includes(id) ?? false;
+          return [
+            id,
+            {
+              name: match.guestNames?.[id] ?? (isBot ? 'Bot' : 'Guest'),
+              color: match.guestColors?.[id] ?? colors.primary,
+              avatar: match.guestAvatars?.[id],
+              isBot: isBot || undefined,
+              botDifficulty: isBot ? 'intermediate' : undefined,
+            },
+          ];
+        })
+      )
+    : undefined;
+
+  return {
+    playerIds: match.playerIds,
+    guestPlayers,
+    legsToWin: match.legsToWin,
+    setsToWin: match.setsToWin,
+    outMode: match.outMode ?? 'double',
+    inMode: match.inMode ?? 'straight',
+  };
+}
 
 type Route = { params: { matchId: string } };
 
@@ -290,7 +325,7 @@ export function GameSummaryScreen() {
               size="lg"
               variant="outline"
               fullWidth
-              onPress={() => navigation.replace('GameSetup', { gameType: match.gameType })}
+              onPress={() => navigation.replace('GameSetup', { gameType: match.gameType, rematch: buildRematchConfig(match) })}
               style={{ marginBottom: spacing.xl }}
             />
           </>
