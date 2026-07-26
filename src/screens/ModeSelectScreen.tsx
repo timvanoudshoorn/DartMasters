@@ -18,7 +18,21 @@ export function ModeSelectScreen() {
 
   return (
     <Screen scroll>
-      <Header title="Select Your Game" onBack={() => navigation.goBack()} />
+      <Header
+        title="Select Your Game"
+        onBack={() => navigation.goBack()}
+        right={
+          <PressableScale
+            scaleTo={0.9}
+            haptic="light"
+            hitSlop={10}
+            style={styles.rulesBtn}
+            onPress={() => navigation.navigate('Rules')}
+          >
+            <Icon name="info" size={18} color={colors.textPrimary} />
+          </PressableScale>
+        }
+      />
       <View style={styles.list}>
         {GAME_MODES.filter((mode) => mode.selectable !== false).map((mode, i) => (
           <ModeRow
@@ -26,6 +40,7 @@ export function ModeSelectScreen() {
             mode={mode}
             index={i}
             onPress={() => navigation.navigate('GameSetup', { gameType: mode.type })}
+            onInfoPress={() => navigation.navigate('Rules', { gameType: mode.type })}
           />
         ))}
       </View>
@@ -37,19 +52,21 @@ function ModeRow({
   mode,
   index,
   onPress,
+  onInfoPress,
 }: {
   mode: (typeof GAME_MODES)[number];
   index: number;
   onPress: () => void;
+  onInfoPress: () => void;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(index * STAGGER_MS).duration(280)}>
+    <Animated.View entering={FadeInDown.delay(index * STAGGER_MS).duration(280)} style={styles.row}>
       <PressableScale
         scaleTo={PRESS_SCALE.row}
         haptic="light"
         sound="buttonTap"
         onPress={onPress}
-        style={styles.row}
+        style={styles.rowMain}
       >
         <View style={[styles.iconCircle, { backgroundColor: mode.color + '1F' }]}>
           <Icon name={mode.icon} size={22} color={mode.color} />
@@ -59,6 +76,15 @@ function ModeRow({
           <Text style={styles.subtitle}>{mode.subtitle}</Text>
         </View>
         <Icon name="chevronRight" size={18} color={colors.textFaint} />
+      </PressableScale>
+      <PressableScale
+        scaleTo={0.85}
+        haptic="tick"
+        hitSlop={10}
+        style={styles.infoBtn}
+        onPress={onInfoPress}
+      >
+        <Icon name="info" size={16} color={colors.textFaint} />
       </PressableScale>
     </Animated.View>
   );
@@ -71,6 +97,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  rowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
     backgroundColor: COLORS.card,
     borderRadius: radius.lg,
@@ -78,7 +111,28 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderTopColor: COLORS.edge,
     padding: 14,
-    marginBottom: spacing.sm,
+  },
+  infoBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderTopColor: COLORS.edge,
+  },
+  rulesBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderTopColor: COLORS.edge,
   },
   iconCircle: {
     width: 50,

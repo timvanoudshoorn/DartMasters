@@ -237,6 +237,12 @@ export function HomeScreen() {
             subtitle="Preferences"
             onPress={() => navigation.navigate('Settings')}
           />
+          <NavTile
+            icon="info"
+            title="How to Play"
+            subtitle="Rules for every mode"
+            onPress={() => navigation.navigate('Rules')}
+          />
         </MountReveal>
       </ScrollView>
     </Screen>
