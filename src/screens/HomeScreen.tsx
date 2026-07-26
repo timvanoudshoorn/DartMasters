@@ -127,7 +127,12 @@ export function HomeScreen() {
               scaleTo={PRESS_SCALE.row}
               haptic="medium"
               style={styles.continueCard}
-              onPress={() => navigation.navigate('Game', { config: activeMatch!.config })}
+              onPress={() =>
+                navigation.navigate('Game', {
+                  config: activeMatch!.config,
+                  tournamentContext: activeMatch!.tournamentContext,
+                })
+              }
             >
               <View style={styles.continueRail} />
               <View style={{ flex: 1 }}>

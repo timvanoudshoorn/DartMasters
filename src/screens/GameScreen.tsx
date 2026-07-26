@@ -19,7 +19,7 @@ export function GameScreen() {
   const { config, tournamentContext } = route.params;
 
   useEffect(() => {
-    ActiveMatchStorage.set(config);
+    ActiveMatchStorage.set(config, tournamentContext);
     return () => {
       ActiveMatchStorage.clear();
     };

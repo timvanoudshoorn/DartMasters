@@ -120,6 +120,19 @@ The X01 screen is where players spend ~90% of their time: scoreboard
 corners and an upward shadow. Number keys are `PressableScale` with
 weight-scaled haptics; the grid tints ember while a multiplier is armed.
 
+## Game rule variants (intentional, not bugs)
+
+- **Cricket's multiplier selector stays armed across darts** (no reset to
+  single after each throw), unlike X01/DartPad which resets every dart.
+  Deliberate: cricket players routinely throw three darts at the same
+  treble in one visit, so persisting the arm reduces taps for the common
+  case.
+- **Bob's 27 never eliminates on a negative score.** The app's own
+  `data/rules.ts` documents the win condition as "highest score after all
+  20 rounds" with no elimination clause, and `applyBobs27Round` lets score
+  go negative and play continues to round 20. This is the chosen variant,
+  not a missing feature — do not add elimination.
+
 ## Hard rules
 
 - **Do not touch** `CameraScoringScreen.tsx` or camera/vision logic — it
