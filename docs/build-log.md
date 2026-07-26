@@ -70,17 +70,31 @@ or explicitly deferred with reasoning). From this point on, new work is
 self-directed: polish, features, edge cases, UX improvements, generated
 and prioritized each cycle by this session.
 
+- Verified `GameSummaryScreen` reads tournament context from
+  `PendingTournamentMatchStorage` directly, not route params — the F15
+  fix (above) is sufficient on its own, no further change needed there.
+
+- **Leg-won ceremony parity — done this session.** X01/Practice170 fire
+  `hapticPattern.legWon()` on a leg win that doesn't end the match (F10);
+  Cricket and Around the Clock also support multi-leg matches
+  (`config.legsToWin`) but had zero ceremony on leg reset — instant snap
+  back with no beat. Shanghai/HalveIt/Bob's 27 are single-leg
+  (`legsToWin: 1` always) so they have no non-match-ending leg transition
+  to cover. *Fix:* added `hapticPattern.legWon()` immediately before the
+  leg-reset state updates in both `CricketGameScreen.tsx` and
+  `AroundTheClockGameScreen.tsx` (both already imported `hapticPattern`;
+  no `scheduleTimeout` needed since neither has a flash/delay before the
+  reset, unlike X01's checkout-flash timing). `npx tsc --noEmit` clean.
+
 ### Next Up
 
-- Sweep for other spots where `ActiveMatchPointer`/tournament resume
-  interacts with match summary — specifically confirm `GameSummaryScreen`
-  reads `PendingTournamentMatchStorage` (not route params) so the F15 fix
-  is sufficient on its own. (Quick verification, not expected to need a
-  code change.)
-- Begin self-directed roadmap: candidates to evaluate next cycle —
-  (a) HalveIt/Shanghai/ATC ceremony parity with X01's leg-won beat now
-  that the pattern exists in one place, (b) a lightweight settings toggle
-  for reduced haptics/motion (accessibility), (c) Stats/Trends screen
-  polish pass, (d) sound asset coverage for `miss`/`buttonTap` (currently
-  permanently silent by design — confirm this is still the desired
-  long-term state or worth an actual asset).
+- Self-directed roadmap candidates for next cycle, in rough priority
+  order: (a) a lightweight Settings toggle for reduced haptics/motion
+  (accessibility — currently no such escape hatch exists anywhere in the
+  app), (b) Stats/Trends screen polish pass, (c) sound asset coverage for
+  `miss`/`buttonTap` (currently permanently silent by design — confirm
+  this is still the desired long-term state or worth an actual asset),
+  (d) general sweep of `src/screens/` flow screens (Achievements,
+  HeadToHead, Search, BackupRestore, Settings) against the design system
+  now that game screens have had two full passes — flow screens were
+  audited but not as deeply iterated on.

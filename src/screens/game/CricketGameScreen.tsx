@@ -246,6 +246,10 @@ export function CricketGameScreen({ config }: Props) {
         return;
       }
 
+      // Leg win that doesn't end the match still gets its own beat, matching
+      // X01/Practice170 — otherwise the board reset reads as a glitch.
+      hapticPattern.legWon();
+
       const newStarter = (starterIndex + 1) % order.length;
       setStarterIndex(newStarter);
       setOrder(rotate(config.playerIds, newStarter));
