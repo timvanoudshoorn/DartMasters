@@ -5,7 +5,6 @@ import { fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
 import { PRESS_SCALE } from '../theme/motion';
 import { hapticPattern } from '../sound/haptics';
-import { playSound } from '../sound/soundManager';
 import { MultiplierSelector } from './MultiplierSelector';
 import { PressableScale } from './primitives/PressableScale';
 
@@ -104,8 +103,11 @@ export function DartPad({ onDart, disabled, primeSegments, variant = 'default' }
           scaleTo={PRESS_SCALE.key}
           haptic="none"
           onPress={() => {
+            // Haptic only — sound is the calling screen's call, based on
+            // game outcome (mirrors tapSegment: this component owns physical
+            // feedback, screens own outcome sound, so callers don't get a
+            // sound double-fired on top of their own miss/bust/score audio).
             hapticPattern.miss();
-            playSound('miss');
             onDart({ segment: 0, multiplier: 1 });
             setMultiplier(1);
           }}

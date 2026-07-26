@@ -128,8 +128,9 @@ export function CheckoutTrainerScreen() {
       return;
     }
 
-    // DartPad already delivered the weight-scaled contact haptic.
-    playSound('dartScored');
+    // DartPad already delivered the weight-scaled contact haptic — sound is
+    // this screen's call, based on outcome (mirrors X01GameScreen's pattern).
+    playSound(dart.segment === 0 ? 'miss' : 'dartScored');
     setVisitDarts(newDarts);
     setLiveRemaining(outcome.remainingAfter);
 

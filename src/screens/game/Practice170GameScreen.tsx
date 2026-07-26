@@ -260,8 +260,9 @@ export function Practice170GameScreen({ config }: Props) {
       finishVisit(newDarts, 0, false, true);
       return;
     }
-    // DartPad already delivered the weight-scaled haptic on contact.
-    playSound('dartScored');
+    // DartPad already delivered the weight-scaled haptic on contact — sound
+    // is this screen's call, based on outcome.
+    playSound(dart.segment === 0 ? 'miss' : 'dartScored');
     setLiveRemaining(outcome.remainingAfter);
     setVisitDarts(newDarts);
     if (newDarts.length >= 3) finishVisit(newDarts, outcome.remainingAfter, false, false);
