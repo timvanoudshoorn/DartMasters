@@ -10,7 +10,7 @@ import { Icon } from '../components/icons/Icon';
 import { CountUp } from '../components/primitives/CountUp';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
-import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
+import { PRESS_SCALE, staggerDelay } from '../theme/motion';
 import { getGameModeInfo } from '../data/gameModes';
 import { RootStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
@@ -98,7 +98,7 @@ export function StatsScreen() {
           const winner = m.winnerId ? resolvePlayerDisplayFromMatch(m.winnerId, players, m) : null;
           const names = m.playerIds.map((id) => resolvePlayerDisplayFromMatch(id, players, m).name).join(', ');
           return (
-            <Animated.View key={m.id} entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(260)}>
+            <Animated.View key={m.id} entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(260)}>
               <PressableScale
                 scaleTo={PRESS_SCALE.row}
                 haptic="light"
