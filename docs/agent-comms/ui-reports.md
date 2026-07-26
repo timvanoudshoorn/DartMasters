@@ -301,3 +301,118 @@ Files: `src/screens/BackupRestoreScreen.tsx`,
 
 None — both tasks were straightforward reuse of existing patterns/tokens,
 no new UI pattern needed.
+
+## Round: sectionTitle → typography.overline consolidation + EventStinger dead-code cleanup
+
+Two independent cleanup tasks this round. Stayed out of `src/logic/` and
+`GameSummaryScreen.tsx` per instructions (both showed unrelated concurrent
+edits from a Logic/Systems agent this round). `npx tsc --noEmit` clean
+after both tasks and at the end.
+
+### Task 1: Consolidate hand-rolled `sectionTitle` onto `typography.overline`
+
+This is the exact drift flagged in the "Stats/Achievements/HeadToHead"
+round above — picking it up now that Head Agent has called it in scope.
+Confirmed `typography.overline` (`src/theme/index.ts`) carries only
+`fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 2, textTransform:
+'uppercase'` — no color, no margin — so each screen's existing color and
+spacing choices needed to be preserved as sibling style properties.
+
+Grepped `letterSpacing: 0.6`/`0.8` + uppercase across `src/screens` beyond
+the five named files: also matched `GameSummaryScreen.tsx` (off-limits this
+round), `GameSetupScreen.tsx`, `MatchDetailScreen.tsx`,
+`game/ShanghaiGameScreen.tsx`, `game/HalveItGameScreen.tsx`,
+`game/KillerGameScreen.tsx`, `game/AroundTheClockGameScreen.tsx`,
+`game/CricketGameScreen.tsx`, `PlayerEditScreen.tsx`. **Left all of these
+untouched** — they weren't in the assigned scope for this round and some
+may be mid-edit by other concurrent agents (e.g. game screens under
+Logic/Systems territory); flagging them here as candidates for a future
+dedicated pass rather than fixing opportunistically.
+
+Per-file results (all five confirmed to genuinely be the "section label
+above a content group" role before touching):
+
+- **`StatsScreen.tsx`** (`sectionTitle`, used once for "MATCH HISTORY"):
+  before `{ fontFamily: fonts.bodyBold, fontSize: 12, color: colors.textMuted,
+  textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: spacing.md }`
+  → after `{ ...typography.overline, color: colors.textMuted, marginBottom:
+  spacing.md }`. Color and margin preserved; font family unchanged
+  (`bodyBold` both before/after); size 12→10, letterSpacing 0.6→2.
+- **`BackupRestoreScreen.tsx`** (`sectionTitle`, used for "EXPORT"/"IMPORT"):
+  identical before/after shape to StatsScreen's — same replacement, same
+  preserved color/margin.
+- **`SettingsScreen.tsx`** (`sectionTitle`, used for "DEFAULT MATCH RULES"/
+  "MANAGE PLAYERS"/"DATA"): identical before/after shape — same replacement.
+- **`PlayerProfileScreen.tsx`** (`sectionTitle`, used for "PERSONAL BESTS"/
+  "GOALS"/"RECENT MATCHES"): before had `letterSpacing: 0.8` (the one file
+  that varied) plus both `marginBottom: spacing.md` and `marginTop:
+  spacing.sm` → after `{ ...typography.overline, color: colors.textMuted,
+  marginBottom: spacing.md, marginTop: spacing.sm }`. Both margins preserved.
+- **`TournamentSetupScreen.tsx`** (`sectionTitle`, used inside a
+  `sectionHeader` row alongside a count badge, for "PLAYERS"/"MATCH
+  FORMAT"): this was the outlier — before used `fontFamily:
+  fonts.bodySemibold` (not `bodyBold` like the other four) and `fontSize:
+  13`, no margin at all (layout handled by the parent `sectionHeader` flex
+  row). After: `{ ...typography.overline, color: colors.textMuted }` — no
+  margin added (none existed before), font family now `bodyBold` via
+  `typography.overline` (a real, visible font-weight/size change on this
+  screen, consistent with the brief's expectation that this consolidation
+  is visibly different, not a no-op).
+
+Removed each dead hand-rolled `sectionTitle` block definition; confirmed
+via re-read that nothing else in each file referenced the old literal
+values (each screen's own `styles.sectionTitle` was the only user).
+
+Files: `src/screens/StatsScreen.tsx`, `src/screens/BackupRestoreScreen.tsx`,
+`src/screens/SettingsScreen.tsx`, `src/screens/PlayerProfileScreen.tsx`,
+`src/screens/TournamentSetupScreen.tsx` (added `typography` to each file's
+theme import, replaced the `sectionTitle` style entry).
+
+### Task 2: `EventStinger.tsx` dead double `scale.value` assignment
+
+Read the file fully first (confirmed this is the reduce-motion-gated
+version — `isReducedMotionEnabled()` branch already present from the prior
+Animation agent pass). Found the dead assignment: inside the `useEffect`,
+`scale.value = reduced ? 1 : 2.4;` was set, then immediately overwritten a
+few lines later (before any render/read in between) by the real animated
+assignment:
+
+```
+scale.value = reduced
+  ? withSequence(withTiming(1, { duration: 40 }), withDelay(hold, withTiming(0.92, { duration: 120 })))
+  : withSequence(withSpring(1, SPRING_BOUNCY), withDelay(HOLD_MS, withTiming(0.92, { duration: 260 })));
+```
+
+The first assignment's plain-number value (`1` or `2.4`) was never read —
+Reanimated's `useAnimatedStyle` only reads `scale.value` on the UI thread
+during a frame, and both assignments happen synchronously in the same
+effect run before any frame renders, so the first write is pure dead
+weight. Removed the `scale.value = reduced ? 1 : 2.4;` line; kept the
+surviving `withSequence`/`withSpring` assignment exactly as-is, which
+already correctly branches on `reduced` and paces off the same `hold`
+variable used for `opacity` — confirmed this preserves the intended
+animation (bouncy overshoot to 1 then settle to 0.92 normally; snappier
+linear ramp to 1 then settle to 0.92 under reduced motion).
+
+Files: `src/components/effects/EventStinger.tsx`.
+
+### Process note (not a content bug)
+
+A concurrent Logic Agent process was committing `personalBests.ts`/
+`collab-pb-celebration.md` changes in this same working directory at the
+same moment I ran `git add`/`git commit` for Task 1. The two commits raced
+on `.git/index`: my Task-1 commit (`9d32a69`) ended up bundling in the
+Logic Agent's already-staged `personalBests.ts`/docs changes alongside my
+five screen files, and the Logic Agent's next commit (`22362e5`) ended up
+containing only my Task-2 `EventStinger.tsx` change under its own message.
+Verified via `git show` that both diffs' actual content is exactly what
+each of us intended — nothing lost or corrupted, just commit-message/
+attribution boundaries got shuffled by the race. Did not rewrite history
+to fix this (would require rebase/amend across another agent's commit,
+riskier than the cosmetic attribution issue it fixes). Flagging so Head
+Agent is aware shared non-worktree git operations across concurrent agents
+can interleave like this.
+
+### Final check
+
+`npx tsc --noEmit` clean after both tasks.
