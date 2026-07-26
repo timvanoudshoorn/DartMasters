@@ -1,5 +1,31 @@
 import { Audio } from 'expo-av';
 
+// Single authoritative owner of the native audio session mode. Both gameplay
+// SFX (this module) and the announcer (dartAnnouncer.ts) share one physical
+// AVAudioSession on iOS — if two modules independently call
+// Audio.setAudioModeAsync(), whichever call's native bridge round-trip
+// resolves last wins, and previously dartAnnouncer.ts made its own
+// module-load-time call in addition to App.tsx's launch-effect call. They
+// happened to carry identical values so they didn't fight in practice, but
+// call it here — once, awaited before anything preloads or plays — so there
+// is exactly one place that owns this and no ordering ambiguity.
+// playsInSilentModeIOS: true is what makes both SFX and the announcer play
+// audibly with the iOS hardware silent switch on; it must not be dropped or
+// overridden by a later call that omits it.
+export async function configureAudioMode(): Promise<void> {
+  try {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+  } catch (err) {
+    console.error('[soundManager] configureAudioMode failed:', err);
+  }
+}
+
 export type SoundTrigger =
   | 'dartScored'
   | 'bust'

@@ -10,14 +10,13 @@ import {
 } from '@expo-google-fonts/inter';
 import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import * as SplashScreen from 'expo-splash-screen';
-import { Audio } from 'expo-av';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
-import { preloadSounds, setSoundEnabled } from './src/sound/soundManager';
+import { configureAudioMode, preloadSounds, setSoundEnabled } from './src/sound/soundManager';
 import { setHapticsEnabled } from './src/sound/haptics';
 import { setReducedMotionEnabled } from './src/theme/motionPreference';
 import { SettingsStorage } from './src/storage/storage';
@@ -38,17 +37,20 @@ export default function App() {
   });
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      allowsRecordingIOS: false,
-    });
     SettingsStorage.get().then((s) => {
       setSoundEnabled(s.soundEnabled);
       setHapticsEnabled(s.hapticsEnabled);
       setReducedMotionEnabled(s.reducedMotionEnabled);
     });
-    preloadSounds();
-    preloadAnnouncerSounds();
+    // Audio session mode (silent-switch override) must be applied before any
+    // sound preloads so playback is audible from the very first clip —
+    // configureAudioMode() is the single owner of this native call, awaited
+    // here rather than raced against another independent setAudioModeAsync
+    // call elsewhere.
+    configureAudioMode().then(() => {
+      preloadSounds();
+      preloadAnnouncerSounds();
+    });
   }, []);
 
   useEffect(() => {

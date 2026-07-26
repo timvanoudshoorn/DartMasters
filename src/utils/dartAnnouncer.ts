@@ -1,11 +1,16 @@
 import { Audio, AVPlaybackStatus } from 'expo-av';
 
-// iOS mutes app audio by default when the device's silent switch is on —
-// without this, every announcer clip plays silently with no error.
-Audio.setAudioModeAsync({
-  playsInSilentModeIOS: true,
-  allowsRecordingIOS: false,
-}).catch((err) => console.error('[dartAnnouncer] setAudioModeAsync failed:', err));
+// iOS mutes app audio by default when the device's silent switch is on. That
+// requires Audio.setAudioModeAsync({ playsInSilentModeIOS: true, ... }) to be
+// in effect before any clip plays — but this module used to make its own
+// module-load-time call to set it, independently of App.tsx's launch-effect
+// call to the same native API. Two independent callers racing the same
+// native audio-session bridge is a bug waiting to happen (whichever bridge
+// round-trip resolves last wins, and a future edit to either call site could
+// silently drop playsInSilentModeIOS for the other). configureAudioMode() in
+// soundManager.ts is now the single owner, awaited once in App.tsx before
+// preloadSounds()/preloadAnnouncerSounds() run, so this module no longer
+// touches the audio session itself.
 
 type ClipKey = `score_${number}` | 'bust' | 'game_on' | 'game_shot';
 
@@ -208,21 +213,36 @@ const clips = new Map<ClipKey, Audio.Sound>();
 let currentSound: Audio.Sound | null = null;
 let sequenceToken = 0;
 
-/**
- * Preload every announcer clip up front so playback has zero delay on first
- * trigger. Loaded one at a time rather than via Promise.all — firing all ~180
- * Audio.Sound.createAsync() calls concurrently floods AVFoundation's internal
- * setup queue on-device and blocks the main thread long enough to trigger an
- * iOS watchdog kill (0x8BADF00D) right after launch.
- */
+// Firing all ~183 Audio.Sound.createAsync() calls concurrently (Promise.all)
+// floods AVFoundation's internal setup queue on-device and blocks the main
+// thread long enough to trigger an iOS watchdog kill (0x8BADF00D) right after
+// launch — that was the freeze this preload used to cause. But loading fully
+// one-at-a-time (183 sequential awaits) swung too far the other way: on
+// device each createAsync() round-trip is tens of milliseconds, so the full
+// preload could take several seconds to over a minute in practice, and any
+// score announced before its clip's turn in that queue silently no-ops
+// (playClip() finds nothing in `clips` and returns) — which is exactly what
+// reads as "the announcer doesn't work" for a match started right after
+// launch. Loading in small concurrent batches keeps peak concurrency far
+// below whatever threshold triggers the watchdog kill while cutting total
+// preload time roughly by the batch size.
+const PRELOAD_BATCH_SIZE = 8;
+
+/** Preload every announcer clip up front so playback has zero delay on first trigger. */
 export async function preloadAnnouncerSounds(): Promise<void> {
-  for (const clip of Object.keys(ANNOUNCER_FILES) as ClipKey[]) {
-    try {
-      const { sound } = await Audio.Sound.createAsync(ANNOUNCER_FILES[clip]);
-      clips.set(clip, sound);
-    } catch (err) {
-      console.error(`[dartAnnouncer] Failed to load clip "${clip}":`, err);
-    }
+  const keys = Object.keys(ANNOUNCER_FILES) as ClipKey[];
+  for (let i = 0; i < keys.length; i += PRELOAD_BATCH_SIZE) {
+    const batch = keys.slice(i, i + PRELOAD_BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (clip) => {
+        try {
+          const { sound } = await Audio.Sound.createAsync(ANNOUNCER_FILES[clip]);
+          clips.set(clip, sound);
+        } catch (err) {
+          console.error(`[dartAnnouncer] Failed to load clip "${clip}":`, err);
+        }
+      })
+    );
   }
 }
 
