@@ -45,6 +45,15 @@ export function PlayersListScreen() {
         right={
           <View style={styles.headerActions}>
             <PressableScale
+              onPress={() => navigation.navigate('HeadToHead')}
+              hitSlop={10}
+              haptic="light"
+              scaleTo={0.88}
+              style={styles.settingsBtn}
+            >
+              <Icon name="users" size={18} color={colors.textSecondary} />
+            </PressableScale>
+            <PressableScale
               onPress={() => navigation.navigate('Settings')}
               hitSlop={10}
               haptic="light"
