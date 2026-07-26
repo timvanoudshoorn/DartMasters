@@ -177,3 +177,50 @@ magic numbers.
 - `CameraScoringScreen.tsx`, anything in `src/logic/`.
 - No screen's layout/imports were changed except `SwitchRow.tsx` itself.
 - No new dependencies.
+
+## Phase 4 — screens wired onto the Phase 3 primitives (non-game screens)
+
+Applied the primitives above to the specific screens called out in
+design-system.md's "Screen work for Phase 4" (game screens and
+`CheckoutTrainerScreen` are being handled by a separate agent in
+parallel and were not touched here). One commit per screen.
+
+- **`AchievementsScreen.tsx`** — replaced its independently-built player
+  chip row with `PlayerFilterChips`; swapped the hardcoded `'#0A0A0A'`
+  checkmark-badge color for `colors.onFill`. Removed the now-dead
+  `playerRow`/`playerChip*` styles.
+- **`StatsTrendsScreen.tsx`** — same swap onto `PlayerFilterChips`;
+  removed the now-dead `pickerRow`/`pickerChip*` styles.
+- **`HeadToHeadScreen.tsx`** — deliberately **not** touched, per this
+  doc's existing note: its picker is a two-player, order-tracked
+  multi-select, structurally different from `PlayerFilterChips`'
+  single-select contract. No changes made to this file.
+- **`ChallengesScreen.tsx`** — replaced its hand-rolled solo/multiplayer
+  pill-track tab control with `TabBar`; swapped its `'#0A0A0A'`
+  checkmark-badge color for `colors.onFill` (same token, same value, as
+  Achievements'). Removed the now-dead `tabBtn*` styles.
+- **`LeaderboardScreen.tsx`** — replaced its period-selector pill-track
+  tab control with `TabBar`; replaced the local `RANK_COLORS` hex array
+  with `colors.medalGold`/`medalSilver`/`medalBronze` (this file already
+  imports `colors` from `../theme`, matching the semantic-alias style
+  those tokens are exported under). `rankTextTop`'s `'#1A1A1A'` was
+  **left unchanged** — per this doc's existing note, that value is
+  distinct from `colors.onFill` (`#0A0A0A`), and swapping it would be a
+  visible color change outside this phase's scope. Removed the now-dead
+  `periodBtn*` styles.
+- **`MatchDetailScreen.tsx`** — behavioral fix, not a primitive swap:
+  replaced its plain `useEffect` data load (keyed on `matchId` only)
+  with `useFocusEffect(useCallback(...))`, matching the pattern in
+  `StatsScreen.tsx`/`PlayersListScreen.tsx`. Returning to this screen
+  after editing a match or player elsewhere now refreshes its data.
+
+No new dependencies, no game-screen or `src/logic/` changes, no shared
+component files modified in this phase (only consumed). `npx tsc
+--noEmit` was run and kept clean after every individual screen commit.
+
+**Judgment call**: this worktree's branch point predated Phase 3's
+merge to `main` (`8fd9267`) — `PlayerFilterChips.tsx`/`TabBar.tsx`/the
+new color tokens didn't exist here until a fast-forward merge of `main`
+was performed first. That merge added no conflicts (single commit,
+purely additive) and is included as this worktree's first commit on top
+of its prior history.
