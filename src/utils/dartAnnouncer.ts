@@ -208,18 +208,22 @@ const clips = new Map<ClipKey, Audio.Sound>();
 let currentSound: Audio.Sound | null = null;
 let sequenceToken = 0;
 
-/** Preload every announcer clip up front so playback has zero delay on first trigger. */
+/**
+ * Preload every announcer clip up front so playback has zero delay on first
+ * trigger. Loaded one at a time rather than via Promise.all — firing all ~180
+ * Audio.Sound.createAsync() calls concurrently floods AVFoundation's internal
+ * setup queue on-device and blocks the main thread long enough to trigger an
+ * iOS watchdog kill (0x8BADF00D) right after launch.
+ */
 export async function preloadAnnouncerSounds(): Promise<void> {
-  await Promise.all(
-    (Object.keys(ANNOUNCER_FILES) as ClipKey[]).map(async (clip) => {
-      try {
-        const { sound } = await Audio.Sound.createAsync(ANNOUNCER_FILES[clip]);
-        clips.set(clip, sound);
-      } catch (err) {
-        console.error(`[dartAnnouncer] Failed to load clip "${clip}":`, err);
-      }
-    })
-  );
+  for (const clip of Object.keys(ANNOUNCER_FILES) as ClipKey[]) {
+    try {
+      const { sound } = await Audio.Sound.createAsync(ANNOUNCER_FILES[clip]);
+      clips.set(clip, sound);
+    } catch (err) {
+      console.error(`[dartAnnouncer] Failed to load clip "${clip}":`, err);
+    }
+  }
 }
 
 function waitForClipToFinish(sound: Audio.Sound, token: number): Promise<void> {
