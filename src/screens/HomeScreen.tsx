@@ -232,6 +232,12 @@ export function HomeScreen() {
             accent
           />
           <NavTile
+            icon="star"
+            title="Achievements"
+            subtitle="Earned badges"
+            onPress={() => navigation.navigate('Achievements')}
+          />
+          <NavTile
             icon="settings"
             title="Settings"
             subtitle="Preferences"

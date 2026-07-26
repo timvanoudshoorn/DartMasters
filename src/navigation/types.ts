@@ -28,6 +28,7 @@ export type RootStackParamList = {
   Home: undefined;
   Challenges: undefined;
   Leaderboard: undefined;
+  Achievements: undefined;
   ModeSelect: undefined;
   GameSetup: { gameType: GameType };
   BullOff: { config: GameConfig };
