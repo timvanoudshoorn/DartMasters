@@ -195,3 +195,40 @@ export function computeAchievements(matches: MatchRecord[], playerId: string): A
     return { definition, progress, earned: progress >= definition.target };
   });
 }
+
+/**
+ * Given a player's full match history (including the just-finished match)
+ * and that match's id, returns the subset of `computeAchievements` statuses
+ * that were newly *earned* specifically by this match — i.e. `earned` flips
+ * false → true between the computation without this match and the
+ * computation with it.
+ *
+ * Pure diffing wrapper, mirroring `newPersonalBestsFromMatch` in
+ * `personalBests.ts`: reruns `computeAchievements` once with the full
+ * history and once with `thisMatchId` excluded, then compares. No
+ * achievement-progress math is reimplemented here, and `computeAchievements`
+ * itself is untouched.
+ *
+ * Simpler than the personal-best case: achievements have no "which
+ * direction is improvement" concept and no single owning match/date to
+ * dedupe by ties — `earned` is a plain boolean that can only go from false
+ * to true (progress is monotonic non-decreasing as more matches are added),
+ * so a strict false→true flip is sufficient and unambiguous.
+ */
+export function newAchievementsFromMatch(
+  matches: MatchRecord[],
+  playerId: string,
+  thisMatchId: string
+): AchievementStatus[] {
+  const withMatch = computeAchievements(matches, playerId);
+  const withoutMatch = computeAchievements(
+    matches.filter((m) => m.id !== thisMatchId),
+    playerId
+  );
+
+  return withMatch.filter((withStatus) => {
+    if (!withStatus.earned) return false;
+    const beforeStatus = withoutMatch.find((s) => s.definition.id === withStatus.definition.id);
+    return !beforeStatus || !beforeStatus.earned;
+  });
+}
