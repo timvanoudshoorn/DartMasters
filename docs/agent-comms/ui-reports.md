@@ -225,3 +225,79 @@ Files: `src/components/EmptyState.tsx` (new `fill` prop),
 `npx tsc --noEmit` clean after all three tasks, run last against the final
 state of all touched files (including the concurrently-migrated
 `SearchScreen.tsx`).
+
+## Round: Roadmap proposals #4/#8 (SegmentButton soundTrigger cleanup, BackupRestore last-backup timestamp)
+
+Two independent Head-Agent-approved tasks. Stayed entirely out of
+`GameSummaryScreen.tsx`, `GameSetupScreen.tsx`, and `src/navigation/types.ts`
+per instructions — those show as modified in `git status` from the
+concurrent Rematch-feature work, not from anything in this round; only
+committed the specific files listed below. `npx tsc --noEmit` clean after
+each task.
+
+### Task 1: `SegmentButton`'s dead `soundTrigger` prop
+
+Read `src/components/SegmentButton.tsx` fully first: it always forwarded
+`sound={soundTrigger}` (defaulting to `'buttonTap'`) into
+`PressableScale`'s `sound` prop, which calls `playSound(sound)` on release.
+Confirmed via F14/Roadmap Agent reaffirmation that `buttonTap`/`miss` have
+no audio assets and stay silent by design permanently — so this was pure
+dead weight.
+
+Grepped the whole live `src/` tree (not the stale `.claude/worktrees/*`
+copies, which are other agents' isolated worktrees and not part of the
+working tree) for every `SegmentButton` call site:
+`CricketGameScreen.tsx`, `ShanghaiGameScreen.tsx`,
+`AroundTheClockGameScreen.tsx`, `HalveItGameScreen.tsx`,
+`KillerGameScreen.tsx`, `Bobs27GameScreen.tsx`. **None of them pass
+`soundTrigger` explicitly** — every call site relies on the (dead) default,
+so no call-site edits were needed or made. Confirmed via targeted grep of
+`soundTrigger` across `src/` (only match was the component itself before
+the edit).
+
+Removed the `soundTrigger` prop from `SegmentButtonProps`, its destructured
+default, and the `sound={soundTrigger}` pass-through in the component body.
+Left the `haptic` prop (the real, load-bearing F7 fix) completely untouched.
+
+Files: `src/components/SegmentButton.tsx`. Commit `2cb433d`.
+
+### Task 2: BackupRestoreScreen — last-backup timestamp
+
+Read `src/screens/BackupRestoreScreen.tsx` fully, including `handleExport`
+(untouched aside from capturing the same `Date.now()` into local state so
+the UI updates immediately after a successful export, without a second
+storage read). Grepped `src/` for any existing relative-time / "X ago"
+helper (`ago|formatRelative|relativeTime|daysAgo`) — none exists anywhere;
+every other screen that shows a date (e.g. `MatchDetailScreen.tsx`'s
+`new Date(match.date).toLocaleString()`) just prints the full timestamp.
+Per the brief, wrote a small one-off `formatLastBackup(lastBackupAt)`
+helper local to this file only (minutes → hours → "yesterday" → days →
+weeks → months tiers), not a new shared util module.
+
+Display: added a `useFocusEffect` read of `SettingsStorage.get().lastBackupAt`
+(re-reads on every screen focus, so returning from a background export via
+the OS share sheet reflects the latest state) and a small icon+text row
+directly under the EXPORT card's "EXPORT DATA" button — the natural
+export-adjacent spot. Icon is `checkmark` (feather `check`) in
+`colors.textFaint` when backed up within 14 days; switches to a new
+`alertCircle` icon (feather `alert-circle`, added to the shared
+`Icon.tsx` registry per that file's own "add a name here" convention) in
+`COLORS.accentHot` — the existing "small text/icons on dark" ember variant,
+not a new hex — when `lastBackupAt` is `null` ("Never backed up") or 14+
+days old. This is a soft color/icon swap only, no alert/modal/badge.
+
+**Layout in words:** the EXPORT card now reads: title "EXPORT" → body copy
+→ "EXPORT DATA" button → (new) a small row with a tiny checkmark or
+alert-circle icon followed by "Backed up 3 days ago" / "Backed up just now"
+/ "Never backed up" in 12px text, sitting just below the button with the
+same left inset as the button. Everything else on the screen (IMPORT card,
+JSON-privacy note) is unchanged.
+
+Files: `src/screens/BackupRestoreScreen.tsx`,
+`src/components/icons/Icon.tsx` (new `alertCircle` icon name). Commit
+`6a6f700`.
+
+### Flag for Head Agent
+
+None — both tasks were straightforward reuse of existing patterns/tokens,
+no new UI pattern needed.
