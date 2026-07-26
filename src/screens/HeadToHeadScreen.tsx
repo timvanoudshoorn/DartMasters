@@ -18,7 +18,7 @@ import { computeHeadToHead, HeadToHeadResult } from '../logic/headToHead';
 import { RootStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing, typography } from '../theme';
-import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
+import { PRESS_SCALE, staggerDelay } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
 
@@ -220,7 +220,7 @@ function Comparison({
             const playersMap: Record<string, Player> = { [playerA.id]: playerA, [playerB.id]: playerB };
             const winner = m.winnerId ? resolvePlayerDisplayFromMatch(m.winnerId, playersMap, m) : null;
             return (
-              <Animated.View key={m.id} entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}>
+              <Animated.View key={m.id} entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(240)}>
                 <PressableScale
                   scaleTo={PRESS_SCALE.row}
                   haptic="light"
