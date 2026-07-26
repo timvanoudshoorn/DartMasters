@@ -8,6 +8,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { PlayerAvatar } from '../components/PlayerAvatar';
+import { PlayerPairChips } from '../components/PlayerPairChips';
 import { CountUp } from '../components/primitives/CountUp';
 import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
@@ -78,31 +79,8 @@ export function HeadToHeadScreen() {
       <Header title="Head to Head" subtitle="Compare two players' records" onBack={() => navigation.goBack()} />
 
       <Text style={styles.sectionTitle}>PICK TWO PLAYERS</Text>
-      <View style={styles.grid}>
-        {players.map((p) => {
-          const orderIndex = pickedIds.indexOf(p.id);
-          const selected = orderIndex >= 0;
-          return (
-            <PressableScale
-              key={p.id}
-              onPress={() => togglePick(p.id)}
-              haptic="tick"
-              scaleTo={0.94}
-              style={[
-                styles.chip,
-                selected && { borderColor: p.color, backgroundColor: p.color + '14' },
-              ]}
-            >
-              <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={32} active={selected} />
-              <Text style={[styles.chipName, selected && { color: colors.textPrimary }]}>{p.name}</Text>
-              {selected && (
-                <View style={[styles.chipBadge, { backgroundColor: p.color }]}>
-                  <Text style={styles.chipBadgeText}>{orderIndex + 1}</Text>
-                </View>
-              )}
-            </PressableScale>
-          );
-        })}
+      <View style={{ marginBottom: spacing.lg }}>
+        <PlayerPairChips players={players} pickedIds={pickedIds} onToggle={togglePick} avatarSize={32} />
       </View>
 
       {!playerA || !playerB || !h2h ? (
@@ -310,39 +288,6 @@ const styles = StyleSheet.create({
     ...typography.overline,
     color: colors.textMuted,
     marginBottom: spacing.md,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.full,
-    backgroundColor: colors.bgCardAlt,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  chipName: {
-    color: colors.textSecondary,
-    fontFamily: fonts.bodySemibold,
-  },
-  chipBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipBadgeText: {
-    fontSize: 11,
-    fontFamily: fonts.bodyExtraBold,
-    color: colors.textPrimary,
   },
   vsRow: {
     flexDirection: 'row',
