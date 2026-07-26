@@ -1,10 +1,10 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { Icon } from '../../components/icons/Icon';
 import { LifeDots } from '../../components/LifeDots';
 import { MultiplierSelector } from '../../components/MultiplierSelector';
@@ -22,11 +22,14 @@ import {
 } from '../../logic/killer';
 import { RootStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
+import { hapticPattern } from '../../sound/haptics';
+import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
 import { STAGGER_MS } from '../../theme/motion';
 import { GameConfig, KillerPlayerState, MatchRecord, Multiplier, Player } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { PlayerDisplay, resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -146,12 +149,7 @@ export function KillerGameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId,
       results,
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
+      ...guestIdentityMaps(config),
       killerEverPlayerIds: finalEverKillerIds,
     };
     playSfx('win');
@@ -216,10 +214,47 @@ export function KillerGameScreen({ config }: Props) {
     return from;
   };
 
+  // One-dart undo (play phase only): snapshot every slice a throw can touch.
+  interface Snapshot {
+    killerPlayers: KillerPlayerState[];
+    order: string[];
+    turnIndex: number;
+    dartsThisTurn: number;
+    dartsThrown: Record<string, number>;
+    eliminationsByPlayer: Record<string, number>;
+    everKillerIds: string[];
+  }
+  const history = useRef<Snapshot[]>([]);
+
+  const snapshot = () => {
+    history.current.push(
+      JSON.parse(
+        JSON.stringify({ killerPlayers, order, turnIndex, dartsThisTurn, dartsThrown, eliminationsByPlayer, everKillerIds })
+      )
+    );
+    if (history.current.length > 80) history.current.shift();
+  };
+
+  const undo = () => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setKillerPlayers(prev.killerPlayers);
+    setOrder(prev.order);
+    setTurnIndex(prev.turnIndex);
+    setDartsThisTurn(prev.dartsThisTurn);
+    setDartsThrown(prev.dartsThrown);
+    setEliminationsByPlayer(prev.eliminationsByPlayer);
+    setEverKillerIds(prev.everKillerIds);
+  };
+
   const throwAt = (hitPlayerId: string | null, overrideMultiplier?: Multiplier) => {
+    snapshot();
+    const effMult = overrideMultiplier ?? multiplier;
+    // Physical weight tracks the dart itself; outcome signatures layer on top.
     if (hitPlayerId === null) playSfx('miss');
+    else hapticPattern.dartHit(effMult);
     const hitNumber = hitPlayerId ? killerPlayers.find((p) => p.playerId === hitPlayerId)!.number : null;
-    const updated = applyKillerThrow(killerPlayers, activePlayerId, hitNumber, overrideMultiplier ?? multiplier, maxLives);
+    const updated = applyKillerThrow(killerPlayers, activePlayerId, hitNumber, effMult, maxLives);
 
     const prevActive = killerPlayers.find((p) => p.playerId === activePlayerId);
     const newActive = updated.find((p) => p.playerId === activePlayerId);
@@ -233,7 +268,9 @@ export function KillerGameScreen({ config }: Props) {
 
     if (becameKiller) playSfx('becomeKiller');
     else if (eliminatedSomeone) playSfx('killerEliminated');
-    else if (hitPlayerId !== null) playSfx('dartScored');
+    // Sound only — the weighted contact haptic already fired above; playSfx
+    // would layer a second, fixed-weight dartHit haptic on top of it.
+    else if (hitPlayerId !== null) playSound('dartScored');
 
     setKillerPlayers(updated);
 
@@ -411,6 +448,7 @@ export function KillerGameScreen({ config }: Props) {
           </View>
         }
         dartsThisTurn={dartsThisTurn}
+        rightAction={<HudUndoButton onPress={undo} disabled={history.current.length === 0} />}
       />
       <PhaseBanner phase="play" isKillerNow={!!activeKiller.isKiller} />
 
@@ -475,7 +513,7 @@ export function KillerGameScreen({ config }: Props) {
         disabled={isBot(activePlayerId)}
         variant="danger"
         size="lg"
-        soundTrigger="miss"
+        haptic="none"
         style={{ marginTop: spacing.md }}
       />
 

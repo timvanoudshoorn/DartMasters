@@ -160,6 +160,12 @@ export function recordMatchResult(
 
   const matchup = rounds[roundIndex]?.matchups[matchupIndex];
   if (!matchup) return tournament;
+  // Defensive: only a player actually in this matchup can win it, and a
+  // decided matchup can't be silently re-decided by a different match.
+  // Currently unreachable through the app's own flows, but one navigation
+  // change away from silent bracket corruption without these guards.
+  if (winnerId !== matchup.playerAId && winnerId !== matchup.playerBId) return tournament;
+  if (matchup.winnerId && matchup.matchId && matchup.matchId !== matchId) return tournament;
 
   matchup.winnerId = winnerId;
   matchup.matchId = matchId;

@@ -1,11 +1,11 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
@@ -20,6 +20,7 @@ import { colors, fonts, radius, spacing } from '../../theme';
 import { STAGGER_MS } from '../../theme/motion';
 import { GameConfig, MatchRecord, Multiplier, Player, ShanghaiPlayerState } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -97,15 +98,7 @@ export function ShanghaiGameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId,
       results,
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
-      botPlayerIds: config.guestPlayers
-        ? Object.entries(config.guestPlayers).filter(([, g]) => g.isBot).map(([id]) => id)
-        : undefined,
+      ...guestIdentityMaps(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -116,7 +109,37 @@ export function ShanghaiGameScreen({ config }: Props) {
       });
   };
 
+  // One-dart undo: snapshot every slice a dart can touch.
+  interface Snapshot {
+    shanghaiPlayers: ShanghaiPlayerState[];
+    round: number;
+    turnIndex: number;
+    visitDarts: (Multiplier | null)[];
+    dartsThrown: Record<string, number>;
+    highestVisit: Record<string, number>;
+  }
+  const history = useRef<Snapshot[]>([]);
+
+  const snapshot = () => {
+    history.current.push(
+      JSON.parse(JSON.stringify({ shanghaiPlayers, round, turnIndex, visitDarts, dartsThrown, highestVisit }))
+    );
+    if (history.current.length > 80) history.current.shift();
+  };
+
+  const undo = () => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setShanghaiPlayers(prev.shanghaiPlayers);
+    setRound(prev.round);
+    setTurnIndex(prev.turnIndex);
+    setVisitDarts(prev.visitDarts);
+    setDartsThrown(prev.dartsThrown);
+    setHighestVisit(prev.highestVisit);
+  };
+
   const registerDart = (mult: Multiplier | null) => {
+    snapshot();
     if (mult === null) {
       playSfx('miss');
     } else {
@@ -186,6 +209,7 @@ export function ShanghaiGameScreen({ config }: Props) {
           </View>
         }
         dartsThisTurn={dartsThisTurn}
+        rightAction={<HudUndoButton onPress={undo} disabled={history.current.length === 0} />}
       />
 
       <View style={styles.scoresRow}>
@@ -220,9 +244,11 @@ export function ShanghaiGameScreen({ config }: Props) {
       {botThinking && <BotThinkingBadge />}
 
       <View style={styles.buttonGrid}>
-        <SegmentButton label="SINGLE" onPress={() => registerDart(1)} disabled={isBot(activePlayerId)} size="lg" variant="default" style={styles.gridBtn} />
-        <SegmentButton label="DOUBLE" onPress={() => registerDart(2)} disabled={isBot(activePlayerId)} size="lg" variant="default" style={styles.gridBtn} />
-        <SegmentButton label="TRIPLE" onPress={() => registerDart(3)} disabled={isBot(activePlayerId)} size="lg" variant="accent" style={styles.gridBtn} />
+        {/* haptic="none" throughout: registerDart delivers the weighted
+            dartHit/miss haptic — a fixed contact tap here would double-fire. */}
+        <SegmentButton label="SINGLE" onPress={() => registerDart(1)} disabled={isBot(activePlayerId)} size="lg" variant="default" style={styles.gridBtn} haptic="none" />
+        <SegmentButton label="DOUBLE" onPress={() => registerDart(2)} disabled={isBot(activePlayerId)} size="lg" variant="default" style={styles.gridBtn} haptic="none" />
+        <SegmentButton label="TRIPLE" onPress={() => registerDart(3)} disabled={isBot(activePlayerId)} size="lg" variant="accent" style={styles.gridBtn} haptic="none" />
         <SegmentButton
           label="MISS"
           onPress={() => registerDart(null)}
@@ -230,7 +256,7 @@ export function ShanghaiGameScreen({ config }: Props) {
           size="lg"
           variant="danger"
           style={styles.gridBtn}
-          soundTrigger="miss"
+          haptic="none"
         />
       </View>
     </Screen>

@@ -1,11 +1,11 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
@@ -26,6 +26,7 @@ import { colors, fonts, radius, spacing } from '../../theme';
 import { STAGGER_MS } from '../../theme/motion';
 import { GameConfig, HALVE_IT_SEQUENCE, HalveItPlayerState, HalveItTarget, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -100,9 +101,47 @@ export function HalveItGameScreen({ config }: Props) {
     return map;
   }, [players]);
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast((t) => (t === msg ? null : t)), 1100);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast((t) => (t === msg ? null : t)), 1100);
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  // One-dart undo: snapshot every slice a dart can touch.
+  interface Snapshot {
+    halveItPlayers: HalveItPlayerState[];
+    roundIndex: number;
+    turnIndex: number;
+    visitDarts: (HalveItDart | null)[];
+    dartsThrown: Record<string, number>;
+    highestRound: Record<string, number>;
+  }
+  const history = useRef<Snapshot[]>([]);
+
+  const snapshot = () => {
+    history.current.push(
+      JSON.parse(JSON.stringify({ halveItPlayers, roundIndex, turnIndex, visitDarts, dartsThrown, highestRound }))
+    );
+    if (history.current.length > 80) history.current.shift();
+  };
+
+  const undo = () => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setHalveItPlayers(prev.halveItPlayers);
+    setRoundIndex(prev.roundIndex);
+    setTurnIndex(prev.turnIndex);
+    setVisitDarts(prev.visitDarts);
+    setDartsThrown(prev.dartsThrown);
+    setHighestRound(prev.highestRound);
   };
 
   const activePlayerId = config.playerIds[turnIndex];
@@ -146,15 +185,7 @@ export function HalveItGameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId,
       results,
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
-      botPlayerIds: config.guestPlayers
-        ? Object.entries(config.guestPlayers).filter(([, g]) => g.isBot).map(([id]) => id)
-        : undefined,
+      ...guestIdentityMaps(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -166,6 +197,7 @@ export function HalveItGameScreen({ config }: Props) {
   };
 
   const registerDart = (dart: HalveItDart | null) => {
+    snapshot();
     if (dart === null) {
       playSfx('miss');
     } else {
@@ -235,6 +267,7 @@ export function HalveItGameScreen({ config }: Props) {
           </View>
         }
         dartsThisTurn={dartsThisTurn}
+        rightAction={<HudUndoButton onPress={undo} disabled={history.current.length === 0} />}
       />
 
       <View style={styles.scoresRow}>
@@ -275,6 +308,7 @@ export function HalveItGameScreen({ config }: Props) {
 
       {(target.kind === 'number' || target.kind === 'bull') && (
         <View style={styles.buttonGrid}>
+          {/* haptic="none" throughout: registerDart delivers the weighted haptic. */}
           <SegmentButton
             label={target.kind === 'bull' ? 'SINGLE BULL' : 'SINGLE'}
             onPress={() => registerDart({ segment: target.segment ?? 25, multiplier: 1 })}
@@ -282,6 +316,7 @@ export function HalveItGameScreen({ config }: Props) {
             size="lg"
             variant="default"
             style={styles.gridBtn}
+            haptic="none"
           />
           <SegmentButton
             label={target.kind === 'bull' ? 'DOUBLE BULL' : 'DOUBLE'}
@@ -290,6 +325,7 @@ export function HalveItGameScreen({ config }: Props) {
             size="lg"
             variant="default"
             style={styles.gridBtn}
+            haptic="none"
           />
           {target.kind === 'number' && (
             <SegmentButton
@@ -299,6 +335,7 @@ export function HalveItGameScreen({ config }: Props) {
               size="lg"
               variant="accent"
               style={styles.gridBtn}
+              haptic="none"
             />
           )}
           <SegmentButton
@@ -308,7 +345,7 @@ export function HalveItGameScreen({ config }: Props) {
             size="lg"
             variant="danger"
             style={styles.gridBtn}
-            soundTrigger="miss"
+            haptic="none"
           />
         </View>
       )}
@@ -327,6 +364,7 @@ export function HalveItGameScreen({ config }: Props) {
                     size="sm"
                     variant="accent"
                     style={styles.numberBtn}
+                    haptic="none"
                   />
                 ))}
               </View>
@@ -338,7 +376,7 @@ export function HalveItGameScreen({ config }: Props) {
             disabled={inputDisabled}
             size="md"
             variant="danger"
-            soundTrigger="miss"
+            haptic="none"
           />
         </>
       )}

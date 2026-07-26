@@ -21,6 +21,12 @@ interface GameHudProps {
    * renders in its place so the exit button + centerContent stay centered.
    */
   dartsThisTurn?: number;
+  /**
+   * Optional action rendered at the right edge (after the dart dots) —
+   * the one shared home for per-screen game actions like Undo, so every
+   * mode puts it in the same place.
+   */
+  rightAction?: React.ReactNode;
 }
 
 /**
@@ -29,7 +35,7 @@ interface GameHudProps {
  * 7 non-X01 game screens (HalveIt, Bobs27, Shanghai, AroundTheClock, Killer,
  * Cricket, Practice170) — see docs/ui-redesign/audit.md.
  */
-export function GameHud({ onExit, centerContent, dartsThisTurn }: GameHudProps) {
+export function GameHud({ onExit, centerContent, dartsThisTurn, rightAction }: GameHudProps) {
   return (
     <View style={styles.topBar}>
       <PressableScale onPress={onExit} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
@@ -38,24 +44,47 @@ export function GameHud({ onExit, centerContent, dartsThisTurn }: GameHudProps) 
 
       {centerContent}
 
-      {dartsThisTurn !== undefined ? (
-        <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) =>
-            i < dartsThisTurn ? (
-              <Animated.View
-                key={i}
-                entering={ZoomIn.springify().damping(11).stiffness(240)}
-                style={[styles.dartDot, styles.dartDotFilled]}
-              />
-            ) : (
-              <View key={i} style={styles.dartDot} />
-            )
-          )}
-        </View>
-      ) : (
-        <View style={styles.exitBtnSpacer} />
-      )}
+      <View style={styles.rightCluster}>
+        {dartsThisTurn !== undefined ? (
+          <View style={styles.dartsIndicator}>
+            {[0, 1, 2].map((i) =>
+              i < dartsThisTurn ? (
+                <Animated.View
+                  key={i}
+                  entering={ZoomIn.springify().damping(11).stiffness(240)}
+                  style={[styles.dartDot, styles.dartDotFilled]}
+                />
+              ) : (
+                <View key={i} style={styles.dartDot} />
+              )
+            )}
+          </View>
+        ) : rightAction ? null : (
+          <View style={styles.exitBtnSpacer} />
+        )}
+        {rightAction}
+      </View>
     </View>
+  );
+}
+
+/**
+ * The standard Undo control for the `rightAction` slot — every game screen
+ * renders this same 32×32 button so one-dart undo lives in one place
+ * across all modes.
+ */
+export function HudUndoButton({ onPress, disabled }: { onPress: () => void; disabled?: boolean }) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      disabled={disabled}
+      haptic="tick"
+      scaleTo={0.88}
+      hitSlop={8}
+      style={[styles.undoBtn, disabled && styles.undoBtnDisabled]}
+    >
+      <Icon name="undo" size={15} color={colors.textMuted} />
+    </PressableScale>
   );
 }
 
@@ -80,6 +109,7 @@ const styles = StyleSheet.create({
   exitBtnSpacer: {
     width: 36,
   },
+  rightCluster: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dartsIndicator: { flexDirection: 'row', gap: 6 },
   dartDot: {
     width: 10,
@@ -90,4 +120,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   dartDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
+  undoBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.bgCardAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  undoBtnDisabled: {
+    opacity: 0.35,
+  },
 });

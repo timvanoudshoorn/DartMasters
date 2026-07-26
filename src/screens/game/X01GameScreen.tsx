@@ -7,7 +7,7 @@ import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { DartPad } from '../../components/DartPad';
 import { EventStinger, StingerEvent } from '../../components/effects/EventStinger';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { Icon } from '../../components/icons/Icon';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { PressableScale } from '../../components/primitives/PressableScale';
@@ -20,7 +20,7 @@ import { computeX01PlayerResult } from '../../logic/stats';
 import { BOT_PROFILES, decideX01Dart } from '../../logic/bot';
 import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
-import { haptic } from '../../sound/haptics';
+import { haptic, hapticPattern } from '../../sound/haptics';
 import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { radius, spacing } from '../../theme';
@@ -28,6 +28,7 @@ import { COLORS, FONT } from '../../theme/colors';
 import { Dart, GameConfig, MatchRecord, Player, X01PlayerState } from '../../types';
 import { announceGameOn, announceGameShot, announceScore, cancelAnnouncements } from '../../utils/dartAnnouncer';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -199,10 +200,8 @@ export function X01GameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId: finalState.matchWinnerId,
       results,
-      guestNames: guestNameMap(config),
-      guestColors: guestColorMap(config),
+      ...guestIdentityMaps(config),
       legWinnerHistory: finalState.legWinnerHistory,
-      botPlayerIds: botPlayerIds(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -303,12 +302,23 @@ export function X01GameScreen({ config }: Props) {
       return;
     }
 
-    // Big finishes on a continuing match deserve their moment on screen.
+    // Every leg win gets its moment — the vocabulary's legWon signature
+    // (previously defined but never wired) lands as its own beat after the
+    // checkout pattern, and sub-100 finishes get a leg stinger so the
+    // scoreboard's snap back to the start score doesn't read as a glitch.
+    scheduleTimeout(() => hapticPattern.legWon(), 350);
     if (checkoutScore >= 100) {
       setStinger({
         id: Date.now(),
         text: checkoutScore === 170 ? 'BIG FISH' : `${checkoutScore} OUT`,
         sub: checkoutScore === 170 ? 'The 170 checkout' : 'Big finish',
+        color: COLORS.positive,
+      });
+    } else {
+      setStinger({
+        id: Date.now(),
+        text: 'GAME SHOT',
+        sub: `Leg to ${resolvePlayerDisplay(activePlayer.playerId, playerMap, config.guestPlayers).name}`,
         color: COLORS.positive,
       });
     }
@@ -419,6 +429,11 @@ export function X01GameScreen({ config }: Props) {
               </Text>
               <Text style={styles.topSubtitle}>{legSetLabel}</Text>
             </View>
+          }
+          rightAction={
+            // Dead during the bust window: the scheduled finishVisit closure
+            // captured pre-undo state and would clobber an undo made here.
+            <HudUndoButton onPress={undo} disabled={history.current.length === 0 || bustFlash} />
           }
         />
       </View>
@@ -634,31 +649,17 @@ export function X01GameScreen({ config }: Props) {
           <Text style={styles.toFinishLabel}>
             TO FINISH  <Text style={styles.toFinishValue}>{liveRemaining}</Text>
           </Text>
-          <View style={styles.deckHeaderBtns}>
-            {/* Undo must stay dead during the bust window: the scheduled
-                finishVisit closure captured pre-undo state, so an undo here
-                would be silently clobbered when that timeout fires. */}
-            <PressableScale
-              onPress={undo}
-              disabled={history.current.length === 0 || bustFlash}
-              haptic="tick"
-              scaleTo={0.88}
-              hitSlop={8}
-              style={[styles.cameraBtn, (history.current.length === 0 || bustFlash) && styles.disabled]}
-            >
-              <Icon name="undo" size={16} color={COLORS.textSub} />
-            </PressableScale>
-            <PressableScale
-              disabled={inputDisabled}
-              onPress={openCameraScoring}
-              haptic="light"
-              scaleTo={0.88}
-              hitSlop={8}
-              style={[styles.cameraBtn, inputDisabled && styles.disabled]}
-            >
-              <Icon name="camera" size={16} color={COLORS.textSub} />
-            </PressableScale>
-          </View>
+          {/* Undo lives in the GameHud's shared action slot now. */}
+          <PressableScale
+            disabled={inputDisabled}
+            onPress={openCameraScoring}
+            haptic="light"
+            scaleTo={0.88}
+            hitSlop={8}
+            style={[styles.cameraBtn, inputDisabled && styles.disabled]}
+          >
+            <Icon name="camera" size={16} color={COLORS.textSub} />
+          </PressableScale>
         </View>
 
         <DartPad onDart={tapDart} disabled={inputDisabled} variant="x01" primeSegments={PRIME_SEGMENTS} />
@@ -683,22 +684,6 @@ function dartValueScored(dart: Dart, outcome: { gated: boolean }): boolean {
 
 function rotate<T>(arr: T[], startIndex: number): T[] {
   return [...arr.slice(startIndex), ...arr.slice(0, startIndex)];
-}
-
-function guestNameMap(config: GameConfig): Record<string, string> | undefined {
-  if (!config.guestPlayers) return undefined;
-  return Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]));
-}
-
-function guestColorMap(config: GameConfig): Record<string, string> | undefined {
-  if (!config.guestPlayers) return undefined;
-  return Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]));
-}
-
-function botPlayerIds(config: GameConfig): string[] | undefined {
-  if (!config.guestPlayers) return undefined;
-  const ids = Object.entries(config.guestPlayers).filter(([, g]) => g.isBot).map(([id]) => id);
-  return ids.length ? ids : undefined;
 }
 
 const styles = StyleSheet.create({
@@ -1160,10 +1145,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: COLORS.textSub,
     letterSpacing: 0,
-  },
-  deckHeaderBtns: {
-    flexDirection: 'row',
-    gap: spacing.sm,
   },
   cameraBtn: {
     width: 32,

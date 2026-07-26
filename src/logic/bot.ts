@@ -79,7 +79,7 @@ function weightedPick(pool: Dart[], skill: number): Dart {
 export function decideX01Dart(
   remaining: number,
   dartsLeft: 1 | 2 | 3,
-  _outMode: OutMode,
+  outMode: OutMode,
   profile: BotProfile
 ): Dart {
   const combo = getCheckoutSuggestion(remaining, dartsLeft);
@@ -92,6 +92,17 @@ export function decideX01Dart(
       return chance(0.55) ? { segment: intended.segment, multiplier: 1 } : { segment: 0, multiplier: 1 };
     }
     return { segment: neighborOf(intended.segment), multiplier: 1 };
+  }
+  // Straight-out has finishes the double-out table can't express — any exact
+  // hit ends the leg, including scores the table has no entry for (like 1,
+  // or 3 with one dart left). Without this branch a bot parked on such a
+  // score would bust or miss forever: the general pool has no S1 and every
+  // other dart in it goes below zero.
+  if (outMode === 'straight' && remaining <= 20) {
+    if (chance(Math.min(0.95, profile.skill + 0.25))) {
+      return { segment: remaining, multiplier: 1 };
+    }
+    return { segment: neighborOf(remaining), multiplier: 1 };
   }
   return weightedPick(X01_DART_POOL, profile.skill);
 }

@@ -1,21 +1,24 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
 import { applyBobs27Round, BOBS27_ROUNDS, createBobs27Players, getBobs27Leader } from '../../logic/bobs27';
 import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
+import { hapticPattern } from '../../sound/haptics';
+import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
 import { STAGGER_MS } from '../../theme/motion';
 import { Bobs27PlayerState, GameConfig, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -96,12 +99,7 @@ export function Bobs27GameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId,
       results,
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
+      ...guestIdentityMaps(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -112,8 +110,44 @@ export function Bobs27GameScreen({ config }: Props) {
       });
   };
 
+  // One-dart undo: snapshot every slice a dart can touch.
+  interface Snapshot {
+    bobsPlayers: Bobs27PlayerState[];
+    turnIndex: number;
+    hitsThisRound: number;
+    dartsThisTurn: number;
+    dartsThrown: Record<string, number>;
+  }
+  const history = useRef<Snapshot[]>([]);
+
+  const snapshot = () => {
+    history.current.push(
+      JSON.parse(JSON.stringify({ bobsPlayers, turnIndex, hitsThisRound, dartsThisTurn, dartsThrown }))
+    );
+    if (history.current.length > 80) history.current.shift();
+  };
+
+  const undo = () => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setBobsPlayers(prev.bobsPlayers);
+    setTurnIndex(prev.turnIndex);
+    setHitsThisRound(prev.hitsThisRound);
+    setDartsThisTurn(prev.dartsThisTurn);
+    setDartsThrown(prev.dartsThrown);
+  };
+
   const throwDart = (hit: boolean) => {
-    playSfx(hit ? 'checkout' : 'miss');
+    snapshot();
+    // A hit double is a double landing, not a leg won — the full checkout
+    // signature fired here up to 20 times a game, diluting the one moment
+    // it's meant to mark. Weighted contact haptic + scored sound instead.
+    if (hit) {
+      hapticPattern.dartHit(2);
+      playSound('dartScored');
+    } else {
+      playSfx('miss');
+    }
     const newDartsThrown = { ...dartsThrown, [activePlayerId]: dartsThrown[activePlayerId] + 1 };
     setDartsThrown(newDartsThrown);
 
@@ -151,6 +185,7 @@ export function Bobs27GameScreen({ config }: Props) {
           </View>
         }
         dartsThisTurn={dartsThisTurn}
+        rightAction={<HudUndoButton onPress={undo} disabled={history.current.length === 0} />}
       />
 
       <View style={styles.scoresRow}>
@@ -184,8 +219,9 @@ export function Bobs27GameScreen({ config }: Props) {
       </Animated.View>
 
       <View style={styles.buttonGrid}>
-        <SegmentButton label="HIT DOUBLE" onPress={() => throwDart(true)} size="lg" variant="accent" style={styles.gridBtn} soundTrigger="buttonTap" />
-        <SegmentButton label="MISS" onPress={() => throwDart(false)} size="lg" variant="danger" style={styles.gridBtn} soundTrigger="miss" />
+        {/* haptic="none": throwDart delivers the weighted haptic. */}
+        <SegmentButton label="HIT DOUBLE" onPress={() => throwDart(true)} size="lg" variant="accent" style={styles.gridBtn} haptic="none" />
+        <SegmentButton label="MISS" onPress={() => throwDart(false)} size="lg" variant="danger" style={styles.gridBtn} haptic="none" />
       </View>
     </Screen>
   );

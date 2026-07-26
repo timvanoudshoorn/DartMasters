@@ -154,7 +154,10 @@ export function GameSetupScreen() {
   };
 
   const minPlayers = gameType === 'killer' ? 2 : 1;
-  const canStart = selectedIds.length >= minPlayers;
+  // At least one human must play: bot-only lineups have nobody to hold the
+  // phone, and some turn-effects can stall without a human tap ever landing.
+  const hasHuman = selectedIds.some((id) => !guests.find((g) => g.id === id)?.isBot);
+  const canStart = selectedIds.length >= minPlayers && hasHuman;
   const isX01Like = isX01(gameType);
   const botSupported = !BOT_UNSUPPORTED_MODES.includes(gameType);
 

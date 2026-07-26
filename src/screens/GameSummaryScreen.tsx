@@ -172,9 +172,13 @@ export function GameSummaryScreen() {
             </Animated.View>
           </>
         ) : (
-          <Animated.Text entering={FadeInDown.delay(REVEAL.trophy).duration(400)} style={styles.winnerName}>
-            MATCH COMPLETE
-          </Animated.Text>
+          // No winner means a genuine tie (Shanghai/Bob's/Halve It can end
+          // level) — name the result instead of a vague "match complete".
+          <Animated.View entering={FadeInDown.delay(REVEAL.trophy).duration(400)} style={styles.nameBlock}>
+            <Text style={styles.championLabel}>TIED RESULT</Text>
+            <Text style={styles.winnerName}>DRAW</Text>
+            <View style={styles.nameRule} />
+          </Animated.View>
         )}
       </View>
 

@@ -13,12 +13,11 @@ import { AnimatedScore } from '../../components/AnimatedScore';
 import { CheckoutBanner } from '../../components/CheckoutBanner';
 import { DartPad } from '../../components/DartPad';
 import { DartSlots } from '../../components/DartSlots';
-import { GameHud } from '../../components/GameHud';
-import { Icon } from '../../components/icons/Icon';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
-import { PressableScale } from '../../components/primitives/PressableScale';
 import { Screen } from '../../components/Screen';
 import { playSound } from '../../sound/soundManager';
+import { hapticPattern } from '../../sound/haptics';
 import { ScreenFlash } from '../../components/effects/ScreenFlash';
 import { useShake } from '../../components/effects/useShake';
 import { getCheckoutSuggestion } from '../../data/checkoutTable';
@@ -30,6 +29,7 @@ import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
 import { Dart, GameConfig, MatchRecord, Player, X01PlayerState } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -179,14 +179,7 @@ export function Practice170GameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId: finalState.matchWinnerId,
       results,
-      // Guest identity maps — every other mode records these; without them a
-      // guest's name/color render as the "Player" fallback in match history.
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
+      ...guestIdentityMaps(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -242,6 +235,8 @@ export function Practice170GameScreen({ config }: Props) {
       finalizeMatch(nextState);
       return;
     }
+    // The round is won but the match continues — give it its own beat.
+    scheduleTimeout(() => hapticPattern.legWon(), 350);
     setState(nextState);
     setVisitDarts([]);
     setLiveRemaining(TARGET);
@@ -292,6 +287,11 @@ export function Practice170GameScreen({ config }: Props) {
             <Text style={styles.topBarSubtitle}>Round {state.attempt}</Text>
           </View>
         }
+        rightAction={
+          // Dead during the bust window — the scheduled finishVisit closure
+          // captured pre-undo state and would clobber an undo made here.
+          <HudUndoButton onPress={undo} disabled={history.current.length === 0 || bustFlash} />
+        }
       />
 
       <View style={styles.spotlight}>
@@ -319,19 +319,6 @@ export function Practice170GameScreen({ config }: Props) {
       </View>
 
       <View style={styles.inputCard}>
-        {/* Disabled during the bust window — the scheduled finishVisit closure
-            captured pre-undo state and would clobber an undo made here. */}
-        <PressableScale
-          onPress={undo}
-          disabled={history.current.length === 0 || bustFlash}
-          haptic="tick"
-          scaleTo={0.88}
-          hitSlop={8}
-          style={[styles.undoBtn, (history.current.length === 0 || bustFlash) && styles.disabled]}
-        >
-          <Icon name="undo" size={16} color={colors.textMuted} />
-        </PressableScale>
-
         {bustFlash ? (
           <Text style={styles.bustText}>BUST — TRY AGAIN</Text>
         ) : (
@@ -405,23 +392,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     position: 'relative',
-  },
-  undoBtn: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    zIndex: 1,
-    width: 32,
-    height: 32,
-    borderRadius: radius.sm,
-    backgroundColor: colors.bgCardAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  disabled: {
-    opacity: 0.35,
   },
   playerHeader: {
     flexDirection: 'row',

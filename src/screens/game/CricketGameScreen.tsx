@@ -1,12 +1,12 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { CricketMark } from '../../components/CricketMark';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { MultiplierSelector } from '../../components/MultiplierSelector';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { Screen } from '../../components/Screen';
@@ -33,6 +33,7 @@ import {
   Player,
 } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -73,10 +74,54 @@ export function CricketGameScreen({ config }: Props) {
   const [botThinking, setBotThinking] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const playSfx = useSoundEffects();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast((t) => (t === msg ? null : t)), 1100);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast((t) => (t === msg ? null : t)), 1100);
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  // One-dart undo: snapshot every state slice a dart can touch before each
+  // throw. Undoing may cross a leg boundary, same as X01's undo.
+  interface Snapshot {
+    cricketPlayers: CricketPlayerState[];
+    order: string[];
+    turnIndex: number;
+    dartsThisTurn: number;
+    visitPoints: number;
+    legsWonMap: Record<string, number>;
+    accum: Record<string, Accum>;
+    starterIndex: number;
+  }
+  const history = useRef<Snapshot[]>([]);
+
+  const snapshot = () => {
+    history.current.push(
+      JSON.parse(
+        JSON.stringify({ cricketPlayers, order, turnIndex, dartsThisTurn, visitPoints, legsWonMap, accum, starterIndex })
+      )
+    );
+    if (history.current.length > 80) history.current.shift();
+  };
+
+  const undo = () => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setCricketPlayers(prev.cricketPlayers);
+    setOrder(prev.order);
+    setTurnIndex(prev.turnIndex);
+    setDartsThisTurn(prev.dartsThisTurn);
+    setVisitPoints(prev.visitPoints);
+    setLegsWonMap(prev.legsWonMap);
+    setAccum(prev.accum);
+    setStarterIndex(prev.starterIndex);
   };
 
   React.useEffect(() => {
@@ -140,15 +185,7 @@ export function CricketGameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId,
       results,
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
-      botPlayerIds: config.guestPlayers
-        ? Object.entries(config.guestPlayers).filter(([, g]) => g.isBot).map(([id]) => id)
-        : undefined,
+      ...guestIdentityMaps(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -160,6 +197,7 @@ export function CricketGameScreen({ config }: Props) {
   };
 
   const throwDart = (target: number | null, rawMult: Multiplier) => {
+    snapshot();
     // A triple bull doesn't exist on a real board — cap bull hits at double.
     // (The bot already caps this in decideCricketThrow; human input didn't.)
     const mult = target === 25 ? (Math.min(rawMult, 2) as Multiplier) : rawMult;
@@ -261,6 +299,7 @@ export function CricketGameScreen({ config }: Props) {
           </View>
         }
         dartsThisTurn={dartsThisTurn}
+        rightAction={<HudUndoButton onPress={undo} disabled={history.current.length === 0} />}
       />
 
       <View style={styles.board}>
@@ -338,6 +377,7 @@ export function CricketGameScreen({ config }: Props) {
                 size="lg"
                 variant={dead ? 'muted' : 'accent'}
                 style={styles.targetButton}
+                haptic="none"
               />
               {noEffect && <View style={styles.noEffectDot} />}
             </View>
@@ -351,7 +391,7 @@ export function CricketGameScreen({ config }: Props) {
         disabled={isBot(activePlayerId)}
         variant="danger"
         size="md"
-        soundTrigger="miss"
+        haptic="none"
       />
     </Screen>
   );

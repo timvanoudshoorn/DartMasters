@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
-import { GameHud } from '../../components/GameHud';
+import { GameHud, HudUndoButton } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
@@ -24,11 +24,14 @@ import {
 import { BOT_PROFILES, decideAtcThrow } from '../../logic/bot';
 import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
+import { hapticPattern } from '../../sound/haptics';
+import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
 import { STAGGER_MS } from '../../theme/motion';
 import { ATC_SEQUENCE, AtcPlayerState, GameConfig, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
+import { guestIdentityMaps } from '../../utils/guestMaps';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
 
 interface Props {
@@ -123,15 +126,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId,
       results,
-      guestNames: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
-        : undefined,
-      guestColors: config.guestPlayers
-        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
-        : undefined,
-      botPlayerIds: config.guestPlayers
-        ? Object.entries(config.guestPlayers).filter(([, g]) => g.isBot).map(([id]) => id)
-        : undefined,
+      ...guestIdentityMaps(config),
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -142,8 +137,53 @@ export function AroundTheClockGameScreen({ config }: Props) {
       });
   };
 
+  // One-dart undo: snapshot every slice a dart can touch.
+  interface Snapshot {
+    atcPlayers: AtcPlayerState[];
+    order: string[];
+    turnIndex: number;
+    dartsThisTurn: number;
+    legsWonMap: Record<string, number>;
+    totalDarts: Record<string, number>;
+    starterIndex: number;
+    gameNumber: number;
+    missesThisLeg: Record<string, number>;
+  }
+  const history = useRef<Snapshot[]>([]);
+
+  const snapshot = () => {
+    history.current.push(
+      JSON.parse(
+        JSON.stringify({ atcPlayers, order, turnIndex, dartsThisTurn, legsWonMap, totalDarts, starterIndex, gameNumber, missesThisLeg })
+      )
+    );
+    if (history.current.length > 80) history.current.shift();
+  };
+
+  const undo = () => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setAtcPlayers(prev.atcPlayers);
+    setOrder(prev.order);
+    setTurnIndex(prev.turnIndex);
+    setDartsThisTurn(prev.dartsThisTurn);
+    setLegsWonMap(prev.legsWonMap);
+    setTotalDarts(prev.totalDarts);
+    setStarterIndex(prev.starterIndex);
+    setGameNumber(prev.gameNumber);
+    setMissesThisLeg(prev.missesThisLeg);
+  };
+
   const throwDart = (type: AtcThrow) => {
-    playSfx(type === 'miss' ? 'miss' : 'dartScored');
+    snapshot();
+    // Physical weight tracks the dart (double/triple land heavier); sound
+    // stays outcome-level. playSfx would bundle a second, fixed-weight haptic.
+    if (type === 'miss') {
+      playSfx('miss');
+    } else {
+      hapticPattern.dartHit(type === 'triple' ? 3 : type === 'double' ? 2 : 1);
+      playSound('dartScored');
+    }
     const updated = atcPlayers.map((p) =>
       p.playerId === activePlayerId ? applyAtcThrow(p, type, !!config.atcDoublesMode) : p
     );
@@ -213,6 +253,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
           </View>
         }
         dartsThisTurn={dartsThisTurn}
+        rightAction={<HudUndoButton onPress={undo} disabled={history.current.length === 0} />}
       />
 
       <View style={styles.tracksContainer}>
@@ -258,6 +299,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
       {botThinking && <BotThinkingBadge />}
 
       <View style={styles.buttonGrid}>
+        {/* haptic="none" throughout: throwDart delivers the weighted haptic. */}
         <SegmentButton
           label="HIT"
           onPress={() => throwDart('hit')}
@@ -265,6 +307,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
           size="lg"
           variant="accent"
           style={styles.gridBtn}
+          haptic="none"
         />
         {showDouble && (
           <SegmentButton
@@ -274,6 +317,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
             size="lg"
             variant="default"
             style={styles.gridBtn}
+            haptic="none"
           />
         )}
         {showTriple && (
@@ -284,6 +328,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
             size="lg"
             variant="default"
             style={styles.gridBtn}
+            haptic="none"
           />
         )}
         <SegmentButton
@@ -293,7 +338,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
           size="lg"
           variant="danger"
           style={styles.gridBtn}
-          soundTrigger="miss"
+          haptic="none"
         />
       </View>
     </Screen>
