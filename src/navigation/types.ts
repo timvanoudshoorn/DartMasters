@@ -26,6 +26,7 @@ export type StatsStackParamList = {
 
 export type RootStackParamList = {
   Home: undefined;
+  Search: undefined;
   Challenges: undefined;
   Leaderboard: undefined;
   ModeSelect: undefined;
