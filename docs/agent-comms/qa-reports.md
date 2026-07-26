@@ -186,3 +186,146 @@ from agent self-reports. `npx tsc --noEmit` is clean. No regressions
 found; the one dead-code line in `EventStinger.tsx` and the stale
 worktrees directory are the only items worth a human's attention, and
 neither blocks shipping this cycle's work.
+
+## Round: Personal-best celebration collab (Logic + UI + Animation, 3-stage)
+
+`npx tsc --noEmit` — clean (no output) before and after this pass. No
+fixes were needed; every area below passed on direct code inspection.
+
+### 1. `src/logic/personalBests.ts` — PASS
+
+- **Additive, existing call sites untouched:**
+  `src/screens/PlayerProfileScreen.tsx:117` —
+  `computePersonalBests(matches, playerId)`, unchanged signature/return.
+  `src/screens/StatsTrendsScreen.tsx:55` — same. `newPersonalBestsFromMatch`
+  (lines 198-231) is a new export only; `computePersonalBests` itself
+  (lines 85-166) has no diff markers touching its math or return shape.
+- **Tie handling traced, not just read:** `newPersonalBestsFromMatch`
+  (lines 203-230) runs `computePersonalBests` twice — `withMatch` on the
+  full array, `withoutMatch` on `matches.filter(m => m.id !== thisMatchId)`
+  (line 204-207). Loop at 211: skips any category where
+  `withRec.matchId !== thisMatchId` (line 213) — this is the mechanism
+  that excludes ties for free, since `computePersonalBests`'s internal
+  accumulation (lines 97, 100, 103, 106, 109 — all strict `>`/`<`, never
+  `>=`/`<=`) only ever reassigns `matchId` on strict improvement. Confirmed
+  by reading the accumulation loop itself (lines 95-112), not just trusting
+  the writeup: a match tying the existing best value fails the strict
+  comparison, so the earlier match keeps the `matchId`, and the tying
+  match is filtered out at line 213 before the improvement check even
+  runs. Second guard (`beforeRec === null || beforeRec.value === null`,
+  line 217) correctly treats "first-ever qualifying record" as newly-set
+  without needing a numeric comparison.
+- **`bestLegDarts` direction correct in both places:** accumulation
+  (line 106): `r.bestLegDarts < bestLegDarts.value` — lower wins, matches
+  "fewest darts" semantics. Diffing (lines 171, 223-225):
+  `LOWER_IS_BETTER = ['bestLegDarts']`, and `improved` is computed as
+  `withRec.value < beforeRec.value` for that id vs `>` for every other
+  category — correct direction, not inverted.
+
+### 2. `src/screens/GameSummaryScreen.tsx` wiring — PASS
+
+- **Winner-only:** line 128,
+  `found?.winnerId ? newPersonalBestsFromMatch(matches, found.winnerId, found.id) : []`.
+  Per-card gating at line 283/287: `isWinner = id === match.winnerId`;
+  `newBestCellLabels` is `null` for non-winners (line 287-289), and
+  `extraNewBests` is `[]` for non-winners (line 290-292) — losers cannot
+  render a badge or chip regardless of `newBests` contents.
+- **Draw safety:** `found?.winnerId` is falsy for a draw (`winnerId: null`
+  per existing F12 tie handling, confirmed via `types/index.ts:239,262`
+  `winnerId?: string | null`) → `newBests` set to `[]`, no call into the
+  logic function at all. No crash path.
+- **X01-only leak check:** the four cell-mapped categories
+  (`highestCheckout`/`bestThreeDartAvg`/`most180sInMatch`/`bestLegDarts`)
+  only ever get passed as `newBest=` inside the `{isX01 && (...)}` block
+  (lines 329-349); the Cricket branch (350-357) and the catch-all branch
+  (358-365) never pass a `newBest` prop at all, so those `RevealStat`
+  calls always default to `undefined`/falsy regardless of `newBests`
+  content — can't leak visually even if the data were somehow present.
+  Additionally verified the data itself can't leak: `computePersonalBests`
+  only assigns a `matchId` for these four categories from `x01Matches`
+  (line 87, 95), so a non-X01 match's id could never equal `thisMatchId`
+  for those categories in the first place — belt and suspenders.
+- **Standalone chips (`bestVisit`/`longestWinStreak`):** `extraNewBests`
+  (lines 290-292, rendered 309-327) is **not** gated by `isX01`, matching
+  spec ("regardless of game type"). Checked this can't produce a false
+  positive on a non-X01 summary: `bestVisit` is only ever attributed a
+  `matchId` from `x01Matches` (same reasoning as above), so it can only
+  appear when the match being summarized is itself X01 — consistent with
+  the collab doc. `longestWinStreak` is genuinely game-type-agnostic by
+  design and correctly unconditional.
+- **Empty-array no-op:** with `newBests = []`, `newBestCellLabels` for the
+  winner becomes `new Set()` (not `null` — only losers get `null`), so
+  `.has(...)` calls return `false` rather than `undefined`. This is a
+  minor inaccuracy versus the collab doc's claim of literally
+  `newBest={undefined}` for the winner's cells in the common case, but
+  `!!false === !!undefined === false` inside `RevealStat`'s
+  `isNewBest = !!newBest && value !== null` (line 436), so output is
+  byte-for-byte identical either way — not a real bug, just an imprecise
+  writeup. `extraNewBests` is `[]` → the `{extraNewBests.length > 0 && ...}`
+  block (line 309) renders nothing, no stray `View`. Confirmed no console
+  errors possible from an empty `.map()` (line 311) — no-op by definition.
+
+### 3. Reduced-motion timing — PASS
+
+- `reducedMs` (`src/theme/motion.ts:43-45`) is exactly
+  `isReducedMotionEnabled() ? 0 : ms` — confirmed by reading the
+  implementation, not assuming.
+- Badge pop delay: `newBestPopDelay = delay + R.newBestPop` where
+  `R.newBestPop = reducedMs(REVEAL.newBestPop)` (line 216). With motion on:
+  winner is always `cardIndex 0` (line 225-227 sorts winner first), so
+  `delay = R.stats + 0 * R.statStep = R.stats`, giving
+  `popDelay = R.stats + R.newBestPop`. With reduced motion,
+  `R.stats = R.newBestPop = 0`, so `popDelay = 0` — pops simultaneously
+  with its card (`delay` for the card is also 0), never *later* than the
+  rest of the reveal. Matches the collab doc's traced math exactly.
+- Haptic: `setTimeout(() => haptic.rigid(), reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop))`
+  (line 201) — same sum as the badge's own pop delay for cardIndex 0, so
+  visual and haptic land together in both motion states. Cross-checked
+  against the screen's pre-existing haptic effect (lines 179-187,
+  `reducedMs(REVEAL.trophy) + 120` and `reducedMs(REVEAL.name) + 100`):
+  under reduced motion these become `120` and `100`ms while the new PB
+  haptic fires at `0`ms — PB haptic fires *first*, not last, which is
+  fine (it's gated on `newBests.length > 0`, an independent condition)
+  and does not conflict with or delay the pre-existing sequence.
+
+### 4. Haptic layering — PASS
+
+- Full haptic timeline in this screen, as it stands: `haptic.heavy()` at
+  `reducedMs(280)+120`, `haptic.success()` at `reducedMs(560)+100`, new
+  `haptic.rigid()` at `reducedMs(900)+reducedMs(300)`. Grepped the file
+  for `hapticPattern` (win/checkout/legWon/oneEighty etc.) — zero matches;
+  those patterns fire in the per-mode game screens before navigation, not
+  here, so there's no cross-screen double-fire risk to trace. Within this
+  screen, `rigid` is otherwise unused (confirmed via read of both existing
+  `useEffect`s, lines 179-187 and 199-203) — no collision with
+  `heavy`/`success`. Multi-badge dedup confirmed: the haptic effect fires
+  once per mount gated on `newBests.length > 0` (line 200), not once per
+  category/chip — matches the "one tick, not one per badge" design intent.
+
+### 5. Tournament branch interaction — PASS
+
+- The tournament-result effect (lines 147-175,
+  `PendingTournamentMatchStorage`/`recordMatchResult`/`tournamentResult`
+  state) and the two PB-related effects (data load 119-137, PB haptic
+  199-203) are fully independent — no shared state, no read of
+  `tournamentResult` anywhere in the PB code path, no read of
+  `newBests`/PB state in the tournament code path. The PB badge rendering
+  (cell badges + chips) lives entirely inside the player-card `.map()`
+  (lines 279-369), which renders identically whether or not
+  `tournamentResult` is set — only the bottom action buttons (377-407)
+  branch on `tournamentResult`, well below and unrelated to the stat
+  cards. A tournament match still flows through the same
+  `newPersonalBestsFromMatch` call and the same `RevealStat`/chip
+  rendering; nothing in the new code assumes a non-tournament context.
+
+## Overall verdict: SHIP AS-IS
+
+All three collab stages (logic, UI, animation) hold up under direct code
+inspection — every claim in `docs/agent-comms/collab-pb-celebration.md`
+was independently traced against the actual diff rather than taken on
+faith, and all five review areas pass. `npx tsc --noEmit` is clean. No
+regressions in `computePersonalBests`'s existing consumers
+(`PlayerProfileScreen`, `StatsTrendsScreen`). No bugs required a fix this
+round — only one cosmetic writeup inaccuracy noted above (Section 2,
+`undefined` vs `false` for `newBest` on the winner's cells), which has
+zero functional or visual effect and isn't worth a commit.
