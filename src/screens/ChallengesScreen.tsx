@@ -11,11 +11,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
+import { PlayerFilterChips } from '../components/PlayerFilterChips';
 import { Screen } from '../components/Screen';
 import { TabBar } from '../components/TabBar';
 import { ChallengeStatus, computeDailyChallengeReport, DailyChallengeReport } from '../logic/challengeProgress';
+import { PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { reducedMs, staggerDelay } from '../theme/motion';
+import { Player } from '../types';
 
 type Tab = 'solo' | 'multiplayer';
 
@@ -23,16 +26,36 @@ export function ChallengesScreen() {
   const navigation = useNavigation();
   const [tab, setTab] = useState<Tab>('solo');
   const [report, setReport] = useState<DailyChallengeReport | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      computeDailyChallengeReport()
+      PlayerStorage.getAll()
+        .then((all) => {
+          setPlayers(all);
+          setSelectedPlayerId((current) => {
+            if (current && all.some((p) => p.id === current)) return current;
+            if (all.length === 0) return null;
+            return all.slice().sort((a, b) => a.createdAt - b.createdAt)[0].id;
+          });
+        })
+        .catch((err) => {
+          console.error('[ChallengesScreen] Failed to load players:', err);
+          setPlayers([]);
+        });
+    }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      computeDailyChallengeReport(selectedPlayerId ?? undefined)
         .then(setReport)
         .catch((err) => {
           console.error('[ChallengesScreen] Failed to compute challenges:', err);
           setReport(null);
         });
-    }, [])
+    }, [selectedPlayerId])
   );
 
   const list = report ? (tab === 'solo' ? report.solo : report.multiplayer) : [];
@@ -47,6 +70,10 @@ export function ChallengesScreen() {
 
       {report && !report.playerId && (
         <Text style={styles.emptyHint}>Add a player profile to start tracking daily challenges.</Text>
+      )}
+
+      {players.length > 1 && (
+        <PlayerFilterChips players={players} selectedId={selectedPlayerId} onSelect={setSelectedPlayerId} />
       )}
 
       <View style={styles.tabRow}>
