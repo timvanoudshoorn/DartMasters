@@ -10,6 +10,7 @@ import { BullOffScreen } from '../screens/BullOffScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { GameSummaryScreen } from '../screens/GameSummaryScreen';
 import { StatsScreen } from '../screens/StatsScreen';
+import { StatsTrendsScreen } from '../screens/StatsTrendsScreen';
 import { MatchDetailScreen } from '../screens/MatchDetailScreen';
 import { PlayersListScreen } from '../screens/PlayersListScreen';
 import { PlayerProfileScreen } from '../screens/PlayerProfileScreen';
@@ -56,6 +57,7 @@ export function RootNavigator() {
         {/* The win moment takes the whole stage — no swipe-back out of it. */}
         <Stack.Screen name="GameSummary" component={GameSummaryScreen} options={{ animation: 'fade', animationDuration: 400, gestureEnabled: false }} />
         <Stack.Screen name="StatsHome" component={StatsScreen} />
+        <Stack.Screen name="StatsTrends" component={StatsTrendsScreen} />
         <Stack.Screen name="MatchDetail" component={MatchDetailScreen} />
         <Stack.Screen name="PlayersList" component={PlayersListScreen} />
         <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} />

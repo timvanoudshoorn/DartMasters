@@ -67,6 +67,22 @@ export function StatsScreen() {
         </View>
       </View>
 
+      <PressableScale
+        scaleTo={PRESS_SCALE.row}
+        haptic="light"
+        onPress={() => navigation.navigate('StatsTrends')}
+        style={styles.trendsCard}
+      >
+        <View style={styles.trendsIconCircle}>
+          <Icon name="pulse" size={18} color={colors.primaryHot} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.modeTitle}>Trends</Text>
+          <Text style={styles.players}>3-dart average over your last matches</Text>
+        </View>
+        <Icon name="chevronRight" size={18} color={colors.textMuted} />
+      </PressableScale>
+
       <Text style={styles.sectionTitle}>MATCH HISTORY</Text>
       {matches.length === 0 ? (
         <EmptyState
@@ -156,6 +172,26 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: spacing.md,
+  },
+  trendsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopColor: colors.edge,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  trendsIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryHot + '1F',
   },
   row: {
     flexDirection: 'row',

@@ -50,7 +50,10 @@ export type IconName =
   | 'moon'
   | 'sun'
   | 'gamepad'
-  | 'rocket';
+  | 'rocket'
+  | 'trendUp'
+  | 'trendDown'
+  | 'trendFlat';
 
 interface IconProps {
   name: IconName;
@@ -110,6 +113,9 @@ const MAP: Record<IconName, Glyph> = {
   sun: { set: 'feather', glyph: 'sun' },
   gamepad: { set: 'mci', glyph: 'gamepad-variant-outline' },
   rocket: { set: 'mci', glyph: 'rocket-launch-outline' },
+  trendUp: { set: 'feather', glyph: 'trending-up' },
+  trendDown: { set: 'feather', glyph: 'trending-down' },
+  trendFlat: { set: 'feather', glyph: 'minus' },
 };
 
 export function Icon({ name, size = 24, color = '#FFFFFF' }: IconProps) {
