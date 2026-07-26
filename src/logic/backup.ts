@@ -3,9 +3,10 @@
 // exactly as those modules define them. Never touches AsyncStorage directly.
 
 import { AppSettings, BullOffResult, BullOffStorage, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
-import { MatchRecord, Player } from '../types';
+import { TournamentStorage } from '../storage/tournament';
+import { MatchRecord, Player, Tournament } from '../types';
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
 export interface BackupData {
   version: number;
@@ -14,17 +15,20 @@ export interface BackupData {
   matches: MatchRecord[];
   settings: AppSettings;
   bullOffLog: BullOffResult[];
+  /** Added in version 2; absent on older exports, treated as empty on import. */
+  tournaments?: Tournament[];
 }
 
 const REQUIRED_KEYS: (keyof BackupData)[] = ['version', 'players', 'matches', 'settings', 'bullOffLog'];
 
 /** Gathers every AsyncStorage-backed slice into a single JSON-serializable snapshot. */
 export async function exportAllData(): Promise<BackupData> {
-  const [players, matches, settings, bullOffLog] = await Promise.all([
+  const [players, matches, settings, bullOffLog, tournaments] = await Promise.all([
     PlayerStorage.getAll(),
     MatchStorage.getAll(),
     SettingsStorage.get(),
     BullOffStorage.getAll(),
+    TournamentStorage.getAll(),
   ]);
 
   return {
@@ -34,6 +38,7 @@ export async function exportAllData(): Promise<BackupData> {
     matches,
     settings,
     bullOffLog,
+    tournaments,
   };
 }
 
@@ -91,5 +96,10 @@ export async function importAllData(jsonString: string): Promise<void> {
   // Bull-off log: BullOffStorage.record() also unshifts.
   for (const result of [...data.bullOffLog].reverse()) {
     await BullOffStorage.record(result);
+  }
+
+  // Tournaments: absent on backups made before version 2.
+  for (const tournament of [...(data.tournaments ?? [])].reverse()) {
+    await TournamentStorage.save(tournament);
   }
 }
