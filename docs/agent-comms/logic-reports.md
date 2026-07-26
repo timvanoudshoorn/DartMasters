@@ -142,3 +142,120 @@ all display work to the UI Agent per the task brief.
   has the export/import UI) or a Settings/Home surface — your call, no
   constraint from this side beyond "don't add new writes, just read the
   field."
+
+## Round: Announcer silence — user-reported priority bug
+
+### Root cause
+
+Not a removed feature — the announcer wiring in `X01GameScreen.tsx`
+(`announceGameOn`/`announceScore`/`cancelAnnouncements`/`announceGameShot`)
+and `App.tsx`'s launch preload calls were all intact. The actual bug is
+fallout from the prior freeze fix (`b3de50a`, "load announcer clips
+sequentially instead of concurrently"):
+
+- `src/utils/dartAnnouncer.ts`'s `preloadAnnouncerSounds()` used to fire all
+  ~183 `Audio.Sound.createAsync()` calls via `Promise.all` — that flooded
+  AVFoundation's setup queue and caused an iOS watchdog kill (0x8BADF00D) at
+  launch, confirmed by device hang reports at the time. The fix serialized
+  it into a `for` loop awaiting one clip at a time, which did stop the
+  freeze — but on-device, 183 sequential native `Audio.Sound.createAsync()`
+  round-trips add up to real wall-clock time (easily several seconds to
+  well over a minute depending on device). Every score announced before its
+  specific clip's turn in that queue hits `playClip()` → `clips.get(clipKey)`
+  returning `undefined` → silent no-op (`if (!sound) return;`, line ~270 in
+  the pre-fix file). Object key insertion order in `ANNOUNCER_FILES` puts
+  `bust`/`game_on`/`game_shot` first, then `score_1` through `score_180` in
+  ascending order, so anything played from a match started shortly after
+  launch — which is exactly how anyone (a user or QA) would first notice the
+  announcer "not working" — has a good chance of silently failing depending
+  on which score total comes up. This is a genuine functional regression,
+  not a false alarm: the freeze fix traded "app hangs at launch" for
+  "announcer is silently broken for the first chunk of a session," which
+  reads to the app owner as "the announcer isn't working anymore."
+- **Fix:** `preloadAnnouncerSounds()` now loads in small concurrent batches
+  (`PRELOAD_BATCH_SIZE = 8`, `Promise.all` per batch, batches run
+  sequentially) instead of either all-at-once or fully serial. This keeps
+  peak native concurrency far below whatever threshold triggered the
+  watchdog kill (8 vs. 183) while cutting total preload wall-clock time
+  roughly 8x versus the fully-serial version, so the announcer becomes
+  usable much sooner after launch. If future testing on a real device shows
+  the watchdog kill returns, `PRELOAD_BATCH_SIZE` is the one dial to tune
+  down; if it's still too slow, tune it up — the batching structure itself
+  is the fix, the exact number is a tradeoff knob.
+
+### Silent-mode requirement (explicit ask from Head Agent mid-task)
+
+Confirmed via reading `node_modules/expo-av/src/Audio.ts`: `setAudioModeAsync`
+maintains one module-level `currentAudioMode` singleton and does
+`_populateMissingKeys(partialMode, getCurrentAudioMode())` — i.e. each call
+merges the given keys over whatever the *last* call (from any caller,
+anywhere in the app) set, then pushes the merged result to the native
+bridge. Traced the actual call sites before this fix: `dartAnnouncer.ts` had
+its own module-load-time call (`playsInSilentModeIOS: true,
+allowsRecordingIOS: false`), and `App.tsx`'s launch `useEffect` made an
+independent second call with the identical two keys. `soundManager.ts` had
+no call of its own. Because both existing calls carried identical values,
+they weren't actively clobbering each other in the current code — but two
+independent, unawaited callers of the same native audio-session singleton
+is a live footgun: nothing prevented a future edit to either call site from
+dropping `playsInSilentModeIOS` for the other, and there was no ordering
+guarantee they'd both complete before first playback (both were fire-and-
+forget).
+
+Fix: added `configureAudioMode()` to `src/sound/soundManager.ts` as the
+single owner of this native call (includes `playsInSilentModeIOS: true`,
+`allowsRecordingIOS: false`, plus the previously-implicit-default
+`staysActiveInBackground: false`, `shouldDuckAndroid: true`,
+`playThroughEarpieceAndroid: false` made explicit so nothing relies on
+`expo-av`'s internal defaults by accident). Removed the module-level call
+from `dartAnnouncer.ts` entirely. `App.tsx`'s launch effect now `await`s
+`configureAudioMode()` before calling `preloadSounds()` /
+`preloadAnnouncerSounds()`, so the native audio session is guaranteed
+configured for silent-mode override before any `Audio.Sound.createAsync()`
+or playback happens for either the SFX or announcer systems. End state:
+exactly one call site, awaited, ahead of all sound creation — silent-mode
+override is no longer a race between competing callers.
+
+### Ruled out (checked, not the cause)
+
+- **Settings gating:** grepped the whole repo for `announcer`/`Announcer` —
+  only `dartAnnouncer.ts` and `X01GameScreen.tsx` reference it. No
+  `soundEnabled`/`hapticsEnabled`/`reducedMotionEnabled` check gates the
+  announcer calls anywhere (in fact `dartAnnouncer.ts` doesn't check
+  `soundEnabled` at all, unlike `soundManager.ts` — a separate, pre-existing
+  quirk, not touched here since it's not the reported bug and touching it
+  risks scope creep on a priority fix).
+- **X01GameScreen control flow:** read `finishVisit`/mount effects in full,
+  not just the `announce*` lines. Recent commits (`89a27a7` DartPad/GameHud
+  rewire, `02ea234` haptic/undo audit pass) changed surrounding UI/haptic
+  code but left every `announceGameOn`/`announceScore`/`cancelAnnouncements`/
+  `announceGameShot` call site and its control flow untouched — confirmed
+  via `git show` diffs on both commits.
+- **`soundManager.ts` comparison:** its preload (`preloadSounds()`) still
+  uses `Promise.all` over only 7 files, which is why it was never affected
+  by the freeze bug or this preload-timing bug — too few files for either
+  problem to manifest. Its `Audio.Sound`/`createAsync`/`playAsync` API usage
+  is otherwise the same as `dartAnnouncer.ts`; no divergence found there.
+- **expo-av / SDK 54 compatibility:** `expo-av@16.0.8` against `expo@54.0.36`
+  per `package.json`; no deprecation warnings or breaking-change notes found
+  in the installed package's source for `Audio.Sound`/`setAudioModeAsync`.
+- **Asset files:** not re-verified individually this round (Head Agent's
+  static read already confirmed all 183 files present); no evidence found
+  that a `require()` path is bad — every clip that does fail would log
+  `[dartAnnouncer] Failed to load clip "..."` via the existing per-clip
+  `catch`, and that error handling was left intact.
+
+### Files changed
+
+- `App.tsx` — removed direct `Audio.setAudioModeAsync` call and `expo-av`
+  import; now awaits `configureAudioMode()` before `preloadSounds()` /
+  `preloadAnnouncerSounds()`.
+- `src/sound/soundManager.ts` — added exported `configureAudioMode()`.
+- `src/utils/dartAnnouncer.ts` — removed its module-level
+  `Audio.setAudioModeAsync` call; `preloadAnnouncerSounds()` now loads in
+  batches of `PRELOAD_BATCH_SIZE = 8` instead of fully sequential.
+
+Committed as `d9533d4` — "Logic Agent: fix announcer silence — consolidate
+audio-mode ownership, batch preload".
+
+`npx tsc --noEmit` — clean, no output, confirmed after all changes above.
