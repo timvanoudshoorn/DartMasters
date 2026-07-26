@@ -4,6 +4,7 @@
 
 import { AppSettings, BullOffResult, BullOffStorage, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { TournamentStorage } from '../storage/tournament';
+import { GoalsStorage, PlayerGoals } from '../storage/goals';
 import { MatchRecord, Player, Tournament } from '../types';
 
 export const BACKUP_VERSION = 2;
@@ -17,6 +18,8 @@ export interface BackupData {
   bullOffLog: BullOffResult[];
   /** Added in version 2; absent on older exports, treated as empty on import. */
   tournaments?: Tournament[];
+  /** Added in version 2; keyed by player id, absent on older exports. */
+  playerGoals?: { [playerId: string]: PlayerGoals };
 }
 
 const REQUIRED_KEYS: (keyof BackupData)[] = ['version', 'players', 'matches', 'settings', 'bullOffLog'];
@@ -31,6 +34,14 @@ export async function exportAllData(): Promise<BackupData> {
     TournamentStorage.getAll(),
   ]);
 
+  const playerGoals: { [playerId: string]: PlayerGoals } = {};
+  for (const player of players) {
+    const goals = await GoalsStorage.getForPlayer(player.id);
+    if (goals.targetThreeDartAvg != null || goals.targetCheckoutPercent != null || goals.targetHighestCheckout != null) {
+      playerGoals[player.id] = goals;
+    }
+  }
+
   return {
     version: BACKUP_VERSION,
     exportedAt: Date.now(),
@@ -39,6 +50,7 @@ export async function exportAllData(): Promise<BackupData> {
     settings,
     bullOffLog,
     tournaments,
+    playerGoals,
   };
 }
 
@@ -101,5 +113,10 @@ export async function importAllData(jsonString: string): Promise<void> {
   // Tournaments: absent on backups made before version 2.
   for (const tournament of [...(data.tournaments ?? [])].reverse()) {
     await TournamentStorage.save(tournament);
+  }
+
+  // Player goals: absent on backups made before version 2.
+  for (const [playerId, goals] of Object.entries(data.playerGoals ?? {})) {
+    await GoalsStorage.setForPlayer(playerId, goals);
   }
 }
