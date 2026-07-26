@@ -14,6 +14,7 @@ export interface AppSettings {
   defaultSetsToWin: number;
   soundEnabled: boolean;
   hapticsEnabled: boolean;
+  reducedMotionEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultSetsToWin: 1,
   soundEnabled: true,
   hapticsEnabled: true,
+  reducedMotionEnabled: false,
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {

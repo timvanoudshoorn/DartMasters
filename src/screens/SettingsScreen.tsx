@@ -14,6 +14,7 @@ import { Screen } from '../components/Screen';
 import { SwitchRow } from '../components/SwitchRow';
 import { setSoundEnabled } from '../sound/soundManager';
 import { setHapticsEnabled } from '../sound/haptics';
+import { setReducedMotionEnabled } from '../theme/motionPreference';
 import { RootStackParamList } from '../navigation/types';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, spacing } from '../theme';
@@ -49,6 +50,7 @@ export function SettingsScreen() {
     });
     if (patch.soundEnabled !== undefined) setSoundEnabled(patch.soundEnabled);
     if (patch.hapticsEnabled !== undefined) setHapticsEnabled(patch.hapticsEnabled);
+    if (patch.reducedMotionEnabled !== undefined) setReducedMotionEnabled(patch.reducedMotionEnabled);
   };
 
   const removePlayer = (id: string, name: string) => {
@@ -119,6 +121,11 @@ export function SettingsScreen() {
           label="Haptics"
           value={settings.hapticsEnabled}
           onChange={(v) => update({ hapticsEnabled: v })}
+        />
+        <SwitchRow
+          label="Reduce motion"
+          value={settings.reducedMotionEnabled}
+          onChange={(v) => update({ reducedMotionEnabled: v })}
         />
       </Card>
       </Animated.View>
