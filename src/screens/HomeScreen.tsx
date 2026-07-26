@@ -244,6 +244,12 @@ export function HomeScreen() {
             onPress={() => navigation.navigate('CheckoutTrainer')}
           />
           <NavTile
+            icon="crown"
+            title="Tournament"
+            subtitle="Knockout bracket"
+            onPress={() => navigation.navigate('TournamentSetup')}
+          />
+          <NavTile
             icon="settings"
             title="Settings"
             subtitle="Preferences"

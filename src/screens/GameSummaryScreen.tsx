@@ -22,12 +22,14 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
-import { PlayStackParamList } from '../navigation/types';
+import { recordMatchResult } from '../logic/tournament';
+import { RootStackParamList } from '../navigation/types';
 import { haptic } from '../sound/haptics';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
+import { PendingTournamentMatchStorage, TournamentStorage } from '../storage/tournament';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS, FONT } from '../theme/colors';
-import { MatchRecord, Player } from '../types';
+import { MatchRecord, Player, Tournament, TournamentMatchContext } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
 
 type Route = { params: { matchId: string } };
@@ -43,10 +45,14 @@ const REVEAL = {
 };
 
 export function GameSummaryScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<PlayStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute() as unknown as Route;
   const [match, setMatch] = useState<MatchRecord | null>(null);
   const [players, setPlayers] = useState<Record<string, Player>>({});
+  const [tournamentResult, setTournamentResult] = useState<{
+    context: TournamentMatchContext;
+    tournament: Tournament;
+  } | null>(null);
 
   useEffect(() => {
     Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])
@@ -63,6 +69,44 @@ export function GameSummaryScreen() {
         setPlayers({});
       });
   }, [route.params.matchId]);
+
+  // Architectural hook point: the per-mode game screens (X01GameScreen etc.)
+  // finish a match and land here knowing nothing about tournaments — they
+  // just call MatchStorage.save() and navigate with a matchId, same as
+  // always. GameScreen (the dispatcher, which we do own) drops a pointer in
+  // PendingTournamentMatchStorage before the match starts if it was launched
+  // from a bracket; once the resulting match is loaded here with a winner,
+  // we consume that pointer, advance the bracket, and persist it — without
+  // ever touching per-mode game logic or screens.
+  useEffect(() => {
+    if (!match || !match.winnerId) return;
+    let cancelled = false;
+    PendingTournamentMatchStorage.get()
+      .then(async (context) => {
+        if (!context || cancelled) return;
+        const tournament = await TournamentStorage.get(context.tournamentId);
+        if (!tournament) {
+          await PendingTournamentMatchStorage.clear();
+          return;
+        }
+        const updated = recordMatchResult(
+          tournament,
+          context.roundIndex,
+          context.matchupIndex,
+          match.winnerId!,
+          match.id
+        );
+        await TournamentStorage.save(updated);
+        await PendingTournamentMatchStorage.clear();
+        if (!cancelled) setTournamentResult({ context, tournament: updated });
+      })
+      .catch((err) => {
+        console.error('[GameSummaryScreen] Failed to record tournament result:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match?.id, match?.winnerId]);
 
   // Physical echo of the on-screen reveal: a thump as the trophy lands,
   // a success roll as the name slams in.
@@ -200,23 +244,40 @@ export function GameSummaryScreen() {
 
       <View style={{ height: spacing.lg }} />
       {/* Match is always fully decided on this screen, so "back to menu" is
-          the primary action and "play again" is secondary — never the reverse. */}
+          the primary action and "play again" is secondary — never the reverse.
+          A tournament matchup swaps both for a single "back to bracket" action
+          instead, since "play again" and "back to menu" don't make sense
+          mid-tournament. */}
       <Animated.View entering={FadeInUp.delay(REVEAL.actions).springify().damping(16)}>
-        <Button
-          label="BACK TO MENU"
-          size="lg"
-          fullWidth
-          onPress={() => navigation.popToTop()}
-          style={{ marginBottom: spacing.md }}
-        />
-        <Button
-          label="PLAY AGAIN"
-          size="lg"
-          variant="outline"
-          fullWidth
-          onPress={() => navigation.replace('GameSetup', { gameType: match.gameType })}
-          style={{ marginBottom: spacing.xl }}
-        />
+        {tournamentResult ? (
+          <Button
+            label={tournamentResult.tournament.status === 'completed' ? 'VIEW CHAMPION' : 'BACK TO BRACKET'}
+            size="lg"
+            fullWidth
+            onPress={() =>
+              navigation.replace('TournamentBracket', { tournamentId: tournamentResult.context.tournamentId })
+            }
+            style={{ marginBottom: spacing.xl }}
+          />
+        ) : (
+          <>
+            <Button
+              label="BACK TO MENU"
+              size="lg"
+              fullWidth
+              onPress={() => navigation.popToTop()}
+              style={{ marginBottom: spacing.md }}
+            />
+            <Button
+              label="PLAY AGAIN"
+              size="lg"
+              variant="outline"
+              fullWidth
+              onPress={() => navigation.replace('GameSetup', { gameType: match.gameType })}
+              style={{ marginBottom: spacing.xl }}
+            />
+          </>
+        )}
       </Animated.View>
     </Screen>
   );

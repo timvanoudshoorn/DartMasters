@@ -222,3 +222,52 @@ export interface GameConfig {
     [playerId: string]: { name: string; color: string; avatar?: string; isBot?: boolean; botDifficulty?: BotDifficulty };
   };
 }
+
+// ---------- Tournament (single-elimination bracket, layered atop normal matches) ----------
+//
+// A tournament never plays darts itself — every matchup is just a normal
+// match run through the existing GameConfig/GameScreen/MatchRecord flow.
+// This module only tracks pairings and winners between rounds.
+
+/** One pairing within a round. `playerAId`/`playerBId` are null while the
+ * previous round's winner is still undecided (TBD), or permanently null for
+ * a genuine bye slot (non-power-of-2 player counts). */
+export interface TournamentMatchup {
+  id: string;
+  playerAId: string | null;
+  playerBId: string | null;
+  winnerId?: string | null;
+  matchId?: string; // MatchRecord id, set once this matchup was actually played
+  isBye?: boolean; // true when the winner was decided automatically (no opponent)
+}
+
+export interface TournamentRound {
+  roundIndex: number;
+  matchups: TournamentMatchup[];
+}
+
+export type TournamentStatus = 'inProgress' | 'completed';
+
+export interface Tournament {
+  id: string;
+  name: string;
+  gameType: GameType;
+  /** Match settings shared by every round; playerIds/guestPlayers live on the
+   * tournament itself since they vary per matchup, not on the template. */
+  formatConfig: Omit<GameConfig, 'playerIds' | 'guestPlayers'>;
+  playerIds: string[];
+  guestPlayers?: GameConfig['guestPlayers'];
+  rounds: TournamentRound[];
+  status: TournamentStatus;
+  winnerId?: string | null;
+  createdAt: number;
+  completedAt?: number;
+}
+
+/** Identifies which tournament matchup a live/completed match belongs to, so
+ * the result can be reported back into the bracket once it's decided. */
+export interface TournamentMatchContext {
+  tournamentId: string;
+  roundIndex: number;
+  matchupIndex: number;
+}
