@@ -79,4 +79,12 @@ export const GAME_RULES: Record<GameType, GameModeRules> = {
     ],
     howToWin: 'Highest score after all 20 rounds wins.',
   },
+  halveIt: {
+    howToPlay: [
+      'A single-leg race through 7 fixed targets in order: 20, Double, 19, Triple, 18, 17, then Bull.',
+      'Each round, throw 3 darts at that round’s target. Darts that qualify (matching the target, or any double/triple on the double/triple rounds) add their value to your running total.',
+      'Miss the target entirely with all 3 darts and your running total is halved (rounded down) instead of gaining anything — hence the name.',
+    ],
+    howToWin: 'Highest running total after all 7 rounds wins.',
+  },
 };
