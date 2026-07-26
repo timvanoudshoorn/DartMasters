@@ -1,21 +1,32 @@
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
+import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { CountUp } from '../components/primitives/CountUp';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
-import { Icon } from '../components/icons/Icon';
+import { Icon, IconName } from '../components/icons/Icon';
 import { PlayerAvatar } from '../components/PlayerAvatar';
 import { Screen } from '../components/Screen';
+import { Sheet } from '../components/Sheet';
 import { StatPill } from '../components/StatPill';
 import { getGameModeInfo } from '../data/gameModes';
-import { aggregateCareerStats } from '../logic/stats';
-import { PlayersStackParamList } from '../navigation/types';
+import { computePersonalBests, PersonalBestRecord } from '../logic/personalBests';
+import { aggregateCareerStats, CareerStats } from '../logic/stats';
+import { RootStackParamList } from '../navigation/types';
+import { GoalsStorage, PlayerGoals } from '../storage/goals';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
-import { colors, fonts, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 import { STAGGER_MS } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
@@ -23,25 +34,67 @@ type Route = { params: { playerId: string } };
 
 const X01_TYPES: GameType[] = ['501', '301', '201', 'practice170'];
 
+const PB_ICONS: Record<PersonalBestRecord['id'], IconName> = {
+  highestCheckout: 'target',
+  bestThreeDartAvg: 'pulse',
+  most180sInMatch: 'bolt',
+  bestLegDarts: 'clock',
+  bestVisit: 'crosshair',
+  longestWinStreak: 'flame',
+};
+
+interface GoalDef {
+  key: keyof PlayerGoals;
+  label: string;
+  getCurrent: (career: CareerStats) => number;
+  format: (n: number) => string;
+}
+
+const GOAL_DEFS: GoalDef[] = [
+  {
+    key: 'targetThreeDartAvg',
+    label: '3-Dart Average',
+    getCurrent: (career) => career.avgThreeDart,
+    format: (n) => n.toFixed(1),
+  },
+  {
+    key: 'targetCheckoutPercent',
+    label: 'Checkout %',
+    getCurrent: (career) => career.checkoutPercent,
+    format: (n) => `${n.toFixed(0)}%`,
+  },
+  {
+    key: 'targetHighestCheckout',
+    label: 'Highest Checkout',
+    getCurrent: (career) => career.highestCheckout,
+    format: (n) => String(Math.round(n)),
+  },
+];
+
 export function PlayerProfileScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<PlayersStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute() as unknown as Route;
   const { playerId } = route.params;
 
   const [player, setPlayer] = useState<Player | null>(null);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
+  const [goals, setGoals] = useState<PlayerGoals>({});
+  const [editingGoal, setEditingGoal] = useState<GoalDef | null>(null);
+  const [goalInput, setGoalInput] = useState('');
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll()])
-        .then(([players, m]) => {
+      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll(), GoalsStorage.getForPlayer(playerId)])
+        .then(([players, m, g]) => {
           setPlayer(players.find((p) => p.id === playerId) ?? null);
           setMatches(m.filter((match) => match.results[playerId]));
+          setGoals(g);
         })
         .catch((err) => {
           console.error('[PlayerProfileScreen] Failed to load data:', err);
           setPlayer(null);
           setMatches([]);
+          setGoals({});
         });
     }, [playerId])
   );
@@ -60,6 +113,38 @@ export function PlayerProfileScreen() {
     const set = new Set(matches.map((m) => m.gameType));
     return Array.from(set);
   }, [matches]);
+
+  const personalBests = useMemo(() => computePersonalBests(matches, playerId), [matches, playerId]);
+
+  const x01Career = useMemo(() => {
+    const x01Matches = matches.filter((m) => X01_TYPES.includes(m.gameType));
+    return aggregateCareerStats(x01Matches, playerId);
+  }, [matches, playerId]);
+
+  const openGoalEditor = useCallback(
+    (def: GoalDef) => {
+      setEditingGoal(def);
+      const current = goals[def.key];
+      setGoalInput(current !== undefined ? String(current) : '');
+    },
+    [goals]
+  );
+
+  const saveGoal = useCallback(() => {
+    if (!editingGoal) return;
+    const parsed = parseFloat(goalInput);
+    const next: PlayerGoals = { ...goals };
+    if (Number.isFinite(parsed) && parsed > 0) {
+      next[editingGoal.key] = parsed;
+    } else {
+      delete next[editingGoal.key];
+    }
+    setGoals(next);
+    setEditingGoal(null);
+    GoalsStorage.setForPlayer(playerId, next).catch((err) => {
+      console.error('[PlayerProfileScreen] Failed to save goal:', err);
+    });
+  }, [editingGoal, goalInput, goals, playerId]);
 
   if (!player) return <Screen />;
 
@@ -96,6 +181,38 @@ export function PlayerProfileScreen() {
         ))
       )}
 
+      {typesPlayed.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>PERSONAL BESTS</Text>
+          <View style={styles.pbGrid}>
+            {personalBests.map((pb, i) => (
+              <PersonalBestTile
+                key={pb.id}
+                record={pb}
+                index={i}
+                onPress={() => {
+                  if (pb.matchId) navigation.navigate('MatchDetail', { matchId: pb.matchId });
+                }}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.sectionTitle}>GOALS</Text>
+          <View style={styles.goalsList}>
+            {GOAL_DEFS.map((def, i) => (
+              <GoalRow
+                key={def.key}
+                def={def}
+                index={i}
+                target={goals[def.key]}
+                current={def.getCurrent(x01Career)}
+                onPress={() => openGoalEditor(def)}
+              />
+            ))}
+          </View>
+        </>
+      )}
+
       <Text style={styles.sectionTitle}>RECENT MATCHES</Text>
       {matches
         .slice()
@@ -120,7 +237,110 @@ export function PlayerProfileScreen() {
           );
         })}
       <View style={{ height: spacing.xl }} />
+
+      <Sheet visible={!!editingGoal} onClose={() => setEditingGoal(null)} title={editingGoal ? `Target: ${editingGoal.label}` : undefined}>
+        <TextInput
+          value={goalInput}
+          onChangeText={setGoalInput}
+          placeholder="Enter target"
+          placeholderTextColor={colors.textMuted}
+          style={styles.goalInput}
+          keyboardType="decimal-pad"
+          autoFocus
+        />
+        <View style={styles.goalSheetActions}>
+          <Button label="Clear" variant="outline" onPress={() => setGoalInput('')} style={{ flex: 1 }} />
+          <Button label="Save" variant="primary" onPress={saveGoal} style={{ flex: 1 }} />
+        </View>
+      </Sheet>
     </Screen>
+  );
+}
+
+function PersonalBestTile({
+  record,
+  index,
+  onPress,
+}: {
+  record: PersonalBestRecord;
+  index: number;
+  onPress: () => void;
+}) {
+  const numeric = record.value !== null;
+  const format = (n: number) => {
+    switch (record.id) {
+      case 'bestThreeDartAvg':
+        return n.toFixed(1);
+      case 'bestLegDarts':
+        return `${Math.round(n)} darts`;
+      case 'longestWinStreak':
+        return `${Math.round(n)} wins`;
+      default:
+        return String(Math.round(n));
+    }
+  };
+
+  return (
+    <Animated.View entering={FadeInDown.delay(STAGGER_MS * index).duration(240)} style={styles.pbTileWrap}>
+      <PressableScale
+        onPress={onPress}
+        disabled={!record.matchId}
+        haptic={record.matchId ? 'light' : undefined}
+        scaleTo={0.96}
+        style={styles.pbTile}
+      >
+        <Icon name={PB_ICONS[record.id]} size={16} color={colors.primaryHot} />
+        {numeric ? (
+          <CountUp value={record.value as number} format={format} style={styles.pbValue} delay={index * STAGGER_MS} />
+        ) : (
+          <Text style={styles.pbValue}>{record.formatted}</Text>
+        )}
+        <Text style={styles.pbLabel}>{record.label}</Text>
+      </PressableScale>
+    </Animated.View>
+  );
+}
+
+function GoalRow({
+  def,
+  index,
+  target,
+  current,
+  onPress,
+}: {
+  def: GoalDef;
+  index: number;
+  target: number | undefined;
+  current: number;
+  onPress: () => void;
+}) {
+  const percent = target && target > 0 ? Math.min(1, current / target) * 100 : 0;
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.value = withDelay(index * STAGGER_MS + 150, withTiming(percent, { duration: 550 }));
+  }, [percent]);
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${width.value}%` }));
+
+  return (
+    <Animated.View entering={FadeInDown.delay(STAGGER_MS * index).duration(240)}>
+      <PressableScale onPress={onPress} haptic="light" scaleTo={0.98} style={styles.goalRow}>
+        <View style={styles.goalHeader}>
+          <Text style={styles.goalLabel}>{def.label}</Text>
+          <Text style={styles.goalTarget}>
+            {def.format(current)} {target ? `/ ${def.format(target)}` : ''}
+          </Text>
+        </View>
+        {target ? (
+          <View style={styles.goalTrack}>
+            <Animated.View style={[styles.goalFill, fillStyle]} />
+          </View>
+        ) : (
+          <Text style={styles.goalSetHint}>Tap to set a target</Text>
+        )}
+      </PressableScale>
+    </Animated.View>
   );
 }
 
@@ -265,5 +485,101 @@ const styles = StyleSheet.create({
     fontSize: 11,
     width: 70,
     textAlign: 'right',
+  },
+  pbGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  pbTileWrap: {
+    width: '31%',
+    flexGrow: 1,
+  },
+  pbTile: {
+    backgroundColor: colors.bgCardAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopColor: colors.edge,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    gap: 2,
+  },
+  pbValue: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    color: colors.textPrimary,
+    marginTop: 4,
+  },
+  pbLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  goalsList: {
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  goalRow: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopColor: colors.edge,
+    padding: spacing.md,
+  },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  goalLabel: {
+    color: colors.textPrimary,
+    fontFamily: fonts.bodySemibold,
+    fontSize: 14,
+    flex: 1,
+  },
+  goalTarget: {
+    color: colors.textMuted,
+    fontFamily: fonts.bodyExtraBold,
+    fontSize: 12,
+  },
+  goalTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.bgCardAlt,
+    overflow: 'hidden',
+  },
+  goalFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  goalSetHint: {
+    color: colors.primaryHot,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+  },
+  goalInput: {
+    backgroundColor: colors.bgCardAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    fontSize: 18,
+    fontFamily: fonts.bodySemibold,
+    marginBottom: spacing.lg,
+  },
+  goalSheetActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
 });
