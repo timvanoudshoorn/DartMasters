@@ -71,3 +71,58 @@ short version for Head Agent/QA.
   stinger still names the event but holds only ~350ms instead of ~900ms.
 - Spot-check one list screen (e.g. PlayersList or Leaderboard) with the
   flag on/off to confirm rows assemble together vs. cascade in.
+
+## Personal-best celebration — motion + haptic (Stage 3, 2026-07-27)
+
+**Summary:** This closes out the 3-stage `collab-pb-celebration.md` collab
+(Logic → UI → Animation). Logic's `newPersonalBestsFromMatch` and UI's
+"NEW BEST" badge/chip placement in `GameSummaryScreen.tsx` were already
+done and reviewed; my piece was motion + haptic on top, described in full
+(with a line-by-line flag-on/flag-off trace) in that collab file's new
+"Animation Agent — motion/haptic" section. Short version below.
+
+**What shipped (`src/screens/GameSummaryScreen.tsx` only):**
+- Badge medal icon + "NEW BEST" caption (the 4 in-grid cells) and the
+  standalone win-streak/best-visit chips now each get their own
+  `Animated.View`/`Animated.Text` with `entering={ZoomIn...springify()}`
+  tuned to `SPRING_BOUNCY` — a distinct celebratory overshoot, not just
+  riding the parent stat card's plain `FadeInDown`.
+- New `REVEAL.newBestPop = 300`ms constant: the extra beat between a
+  card's own entrance and its badge popping, so it reads as "card lands,
+  then a badge appears on it." Reduced-motion-gated via `reducedMs`
+  alongside the rest of this screen's existing `REVEAL` constants.
+- New optional `RevealStat` prop `newBestPopDelay` (non-breaking — falls
+  back to the existing `delay` prop, i.e. simultaneous with the card, at
+  every call site that doesn't pass it).
+- One new `haptic.rigid()` accent, fired at most once per ceremony (not
+  once per badge) via a new `useEffect`, timed to land alongside the
+  winner's first badge pop.
+- `npx tsc --noEmit` clean.
+
+**Judgment calls (detail + reasoning in the collab file):**
+- **Reduced motion → fast-forward, not skip.** Only the 300ms head-start
+  delay collapses to 0; the badge's `SPRING_BOUNCY` pop always plays in
+  full. Reasoning: a personal-best badge is a fact ("you just set a
+  record"), not ambient decoration like `Confetti`/`PulseRing` — closer to
+  `EventStinger`'s "fast-forward" precedent from the reduce-motion collab
+  than to something that gets hidden outright.
+- **One haptic tick total, not one per badge.** Up to ~4 cell badges + 2
+  chips can be `newBest` in the same match, and the trophy-thump
+  (`haptic.heavy`) and name-slam (`haptic.success`) already fire moments
+  earlier in this exact sequence — stacking a tick per badge would read
+  as buzzing. `haptic.rigid` was picked specifically because it's
+  otherwise unused anywhere in this screen's ceremony, so it reads as a
+  new, distinct accent rather than a repeat.
+
+**Traced, not device-tested (no visual confirmation possible from here):**
+flag-off: card lands at 900ms, badge pops + haptic.rigid fires together
+at 1200ms, ~300ms after the card visibly settles. flag-on: all delays
+collapse to 0, badge still plays its full spring pop simultaneously with
+the card, haptic fires at 0ms alongside the (now compressed) trophy/name
+haptics — compressed timeline, nothing skipped. Full trace with exact ms
+math is in `collab-pb-celebration.md`.
+
+**Status: all 3 stages of `collab-pb-celebration.md` are now complete**
+(Logic's diffing function, UI's badge/chip placement, this motion/haptic
+pass). Ready for QA/Integration Agent's cross-check per that file's
+sequencing note (step 4).

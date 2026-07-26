@@ -187,4 +187,96 @@ no dedicated spring/stagger/haptic was added for the badge itself.
 
 ## Animation Agent — motion/haptic (fill in below)
 
-*(pending — do not start until the UI section above is filled in)*
+**File:** `src/screens/GameSummaryScreen.tsx` only (no other files touched).
+
+**What was added:** the medal-icon badge and "NEW BEST" caption inside
+`RevealStat` (for the four matching cells) and the standalone
+`extraBestChip`s (for `bestVisit`/`longestWinStreak`) now each get their
+own `Animated.View`/`Animated.Text` with `entering={ZoomIn...springify()}`
+tuned to `SPRING_BOUNCY` (`damping: 12, stiffness: 190` — the app's one
+celebratory spring per `CLAUDE.md`), instead of just riding along with the
+parent stat card's plain `FadeInDown`. This reads as "the card lands, then
+a badge pops onto it" rather than the badge blending into the ordinary
+card entrance. A new `REVEAL.newBestPop = 300`ms constant is the extra
+beat between a card's own entrance delay and its badge's pop; it's
+reduced-motion-gated (`R.newBestPop = reducedMs(REVEAL.newBestPop)`) and
+added on top of the existing per-card `delay`, passed down to `RevealStat`
+as a new optional `newBestPopDelay` prop (falls back to the plain `delay`,
+i.e. simultaneous with the card, if not supplied — keeps the prop
+non-breaking for the many `RevealStat` call sites that never pass it).
+
+**Reduced-motion judgment call:** the badge's own `SPRING_BOUNCY` pop
+*always* plays in full — only the extra 300ms "lands after the card" head
+start collapses to 0 under reduced motion (via `reducedMs`), so the badge
+appears simultaneously with its card instead of visibly staggered after
+it. I leaned toward "fast-forward the choreography, not skip the
+flourish entirely," per `motionPreference.ts`'s contract that a
+celebratory pop is closer to a spectrum than a binary: pure ambient
+decoration (`Confetti`, `PulseRing`, the win-screen `ScreenFlash`
+territory) gets skipped outright under reduced motion, but this badge is
+the single most personally meaningful thing the ceremony can show the
+player — a genuine "you just set a record" fact, not wallpaper — so unlike
+Confetti it still renders and still visibly snaps into place, it just
+loses its staggered lead-in. This mirrors how the rest of this screen
+already treats reduced motion (delays collapse to 0, but every element —
+avatar, trophy badge, name — still appears, nothing is hidden).
+
+**Multi-badge haptic judgment call — one tick, not one per badge:** added
+a new `useEffect` (placed alongside the screen's existing haptic-echo
+effect, before the `if (!match) return` guard, same pattern) that fires
+`haptic.rigid()` exactly once, gated on `newBests.length > 0`, timed to
+`reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop)` — the same sum
+that produces the winner's first-card badge's pop delay (winner is always
+`cardIndex 0` since `orderedIds` sorts them first), so the one haptic beat
+lines up with the first badge visually landing. Did **not** give every
+badge/chip its own tick: up to ~4 cell badges + 2 chips could all be
+`newBest` in the same match, and the trophy thump (`haptic.heavy` at
+`REVEAL.trophy`) and name-slam (`haptic.success` at `REVEAL.name`) already
+fire moments earlier in this exact sequence — stacking 6 more ticks a few
+hundred ms later would read as buzzing, not a single distinct "new record"
+moment. `haptic.rigid` was chosen because it's otherwise unused anywhere
+in this screen's ceremony (only `heavy`/`success` fire elsewhere), so it
+reads as a genuinely new, sharp accent rather than a repeat of a haptic
+already spent on the trophy/name beats. The silent badges/chips remain
+fully visible with their own `SPRING_BOUNCY` pop — only the *haptic*
+layer is deduped, not the visual one (Stage 2's "badge every category"
+decision is untouched).
+
+**Flag-off (motion on) trace:** mount → `REVEAL.overline` (80ms) label
+fade → `REVEAL.trophy` (280ms) avatar `ZoomIn` + pulse rings, `haptic.heavy`
+at 400ms → `REVEAL.name` (560ms) name slam, `haptic.success` at 660ms →
+`REVEAL.stats` (900ms) winner's card `FadeInDown` begins (cardIndex 0,
+`delay = 900`); at `900 + 300 = 1200ms` its `newBest` cells' medal badges
+and any standalone chips `ZoomIn` with a bouncy overshoot, and
+simultaneously `haptic.rigid()` fires once (scheduled at the same 1200ms
+mark) — the badge appears to physically land under the finger/thumb via
+the haptic beat, distinctly after the card itself (which started
+animating in 300ms earlier and has already settled). Losers' cards follow
+at `900 + statStep` increments but never carry badges (`newBestCellLabels`
+is `null` for non-winners), so no further haptics fire for them.
+
+**Flag-on (reduced motion) trace:** `isReducedMotionEnabled()` true →
+every `REVEAL.*` value collapses to 0 via `reducedMs`, so overline/
+trophy/name/stats/statStep/newBestPop are all 0 — all entrance `delay`s
+become 0 and everything mounts together instead of cascading (matches the
+rest of this screen's existing reduced-motion behavior, unchanged by this
+work). The badge's `ZoomIn.delay(popDelay)` becomes `ZoomIn.delay(0)`
+(since `newBestPopDelay = delay + R.newBestPop = 0 + 0 = 0`), so it pops
+in at the same instant as its card rather than visibly after — but it
+still *plays* the full `SPRING_BOUNCY` overshoot animation (only the
+pre-delay was gated, not the spring itself), so a reduced-motion user
+still sees and feels a distinct "pop," just without the staggered
+lead-in. The haptic fires at `reducedMs(900) + reducedMs(300) = 0`, i.e.
+immediately on mount, with the pre-existing trophy/name haptics landing
+shortly after (`reducedMs(560) + 100 = 100`ms for the name success roll,
+`reducedMs(280) + 120 = 120`ms for the trophy thump — note this pair's
+relative order was already like that before this change, unaffected by
+this work) — three closely-timed haptic beats in quick succession rather
+than spread over 1.2s, which is the expected reduced-motion trade-off
+(compressed timeline, nothing skipped).
+
+**Not touched:** Logic's `newPersonalBestsFromMatch` diffing and UI's
+category→cell mapping / chip-vs-badge placement decisions from Stages 1–2
+are unchanged — this stage only added `entering=` props, one new `REVEAL`
+constant, one new optional `RevealStat` prop, and one new `useEffect` for
+the haptic.
