@@ -2,14 +2,13 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
 import { CricketMark } from '../../components/CricketMark';
-import { Icon } from '../../components/icons/Icon';
+import { GameHud } from '../../components/GameHud';
 import { MultiplierSelector } from '../../components/MultiplierSelector';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
-import { PressableScale } from '../../components/primitives/PressableScale';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
 import { hapticPattern } from '../../sound/haptics';
@@ -239,29 +238,17 @@ export function CricketGameScreen({ config }: Props) {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-          <Icon name="close" size={16} color={colors.textMuted} />
-        </PressableScale>
-        <View style={styles.legPill}>
-          <Text style={styles.legLabel}>
-            {config.cutThroat ? 'CUT-THROAT · ' : ''}GAME {Object.values(legsWonMap).reduce((a, b) => a + b, 0) + 1}
-          </Text>
-        </View>
-        <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) =>
-            i < dartsThisTurn ? (
-              <Animated.View
-                key={i}
-                entering={ZoomIn.springify().damping(11).stiffness(240)}
-                style={[styles.dartDot, styles.dartDotFilled]}
-              />
-            ) : (
-              <View key={i} style={styles.dartDot} />
-            )
-          )}
-        </View>
-      </View>
+      <GameHud
+        onExit={() => navigation.goBack()}
+        centerContent={
+          <View style={styles.legPill}>
+            <Text style={styles.legLabel}>
+              {config.cutThroat ? 'CUT-THROAT · ' : ''}GAME {Object.values(legsWonMap).reduce((a, b) => a + b, 0) + 1}
+            </Text>
+          </View>
+        }
+        dartsThisTurn={dartsThisTurn}
+      />
 
       <View style={styles.board}>
         <View style={styles.boardHeaderRow}>
@@ -362,21 +349,6 @@ function rotate<T>(arr: T[], startIndex: number): T[] {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  exitBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exit: { color: colors.textMuted, fontSize: 16, fontFamily: fonts.bodyBold },
   legPill: {
     backgroundColor: colors.bgCardAlt,
     borderRadius: radius.full,
@@ -386,16 +358,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   legLabel: { fontFamily: fonts.bodyExtraBold, fontSize: 12, color: colors.textSecondary, letterSpacing: 0.6 },
-  dartsIndicator: { flexDirection: 'row', gap: 6 },
-  dartDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.bgCardAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dartDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
   board: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.lg,

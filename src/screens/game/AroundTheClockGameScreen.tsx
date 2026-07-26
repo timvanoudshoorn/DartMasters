@@ -7,13 +7,11 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-  ZoomIn,
 } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
-import { Icon } from '../../components/icons/Icon';
+import { GameHud } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
-import { PressableScale } from '../../components/primitives/PressableScale';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
 import {
@@ -207,27 +205,15 @@ export function AroundTheClockGameScreen({ config }: Props) {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-          <Icon name="close" size={16} color={colors.textMuted} />
-        </PressableScale>
-        <View style={styles.legPill}>
-          <Text style={styles.legLabel}>GAME {gameNumber}</Text>
-        </View>
-        <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) =>
-            i < dartsThisTurn ? (
-              <Animated.View
-                key={i}
-                entering={ZoomIn.springify().damping(11).stiffness(240)}
-                style={[styles.dartDot, styles.dartDotFilled]}
-              />
-            ) : (
-              <View key={i} style={styles.dartDot} />
-            )
-          )}
-        </View>
-      </View>
+      <GameHud
+        onExit={() => navigation.goBack()}
+        centerContent={
+          <View style={styles.legPill}>
+            <Text style={styles.legLabel}>GAME {gameNumber}</Text>
+          </View>
+        }
+        dartsThisTurn={dartsThisTurn}
+      />
 
       <View style={styles.tracksContainer}>
         {atcPlayers.map((p, i) => {
@@ -332,20 +318,6 @@ function TrackFill({ percent, color }: { percent: number; color: string }) {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  exitBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   legPill: {
     backgroundColor: colors.bgCardAlt,
     borderRadius: radius.full,
@@ -355,16 +327,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   legLabel: { fontFamily: fonts.bodyExtraBold, fontSize: 12, color: colors.textSecondary, letterSpacing: 0.6 },
-  dartsIndicator: { flexDirection: 'row', gap: 6 },
-  dartDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.bgCardAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dartDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
   tracksContainer: {
     gap: spacing.md,
     marginBottom: spacing.xl,

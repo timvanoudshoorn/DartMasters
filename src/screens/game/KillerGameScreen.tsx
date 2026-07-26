@@ -2,8 +2,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
+import { GameHud } from '../../components/GameHud';
 import { Icon } from '../../components/icons/Icon';
 import { LifeDots } from '../../components/LifeDots';
 import { MultiplierSelector } from '../../components/MultiplierSelector';
@@ -283,16 +284,15 @@ export function KillerGameScreen({ config }: Props) {
   if (phase === 'claim') {
     return (
       <Screen scroll>
-        <View style={styles.topBar}>
-          <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-            <Icon name="close" size={16} color={colors.textMuted} />
-          </PressableScale>
-          <View style={styles.titlePill}>
-            <Icon name="skull" size={14} color="#9B6BFF" />
-            <Text style={styles.title}>KILLER</Text>
-          </View>
-          <View style={{ width: 36 }} />
-        </View>
+        <GameHud
+          onExit={() => navigation.goBack()}
+          centerContent={
+            <View style={styles.titlePill}>
+              <Icon name="skull" size={14} color={colors.killer} />
+              <Text style={styles.title}>KILLER</Text>
+            </View>
+          }
+        />
         <PhaseBanner phase="claim" isKillerNow={false} />
 
         <Text style={styles.phaseTitle}>Claim Your Number</Text>
@@ -366,16 +366,15 @@ export function KillerGameScreen({ config }: Props) {
   if (phase === 'bullOff') {
     return (
       <Screen scroll>
-        <View style={styles.topBar}>
-          <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-            <Icon name="close" size={16} color={colors.textMuted} />
-          </PressableScale>
-          <View style={styles.titlePill}>
-            <Icon name="skull" size={14} color="#9B6BFF" />
-            <Text style={styles.title}>KILLER</Text>
-          </View>
-          <View style={{ width: 36 }} />
-        </View>
+        <GameHud
+          onExit={() => navigation.goBack()}
+          centerContent={
+            <View style={styles.titlePill}>
+              <Icon name="skull" size={14} color={colors.killer} />
+              <Text style={styles.title}>KILLER</Text>
+            </View>
+          }
+        />
         <PhaseBanner phase="bullOff" isKillerNow={false} />
 
         <Text style={styles.phaseTitle}>Bull Off</Text>
@@ -403,28 +402,16 @@ export function KillerGameScreen({ config }: Props) {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-          <Icon name="close" size={16} color={colors.textMuted} />
-        </PressableScale>
-        <View style={styles.titlePill}>
-          <Icon name="skull" size={14} color="#9B6BFF" />
-          <Text style={styles.title}>KILLER</Text>
-        </View>
-        <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) =>
-            i < dartsThisTurn ? (
-              <Animated.View
-                key={i}
-                entering={ZoomIn.springify().damping(11).stiffness(240)}
-                style={[styles.dartDot, styles.dartDotFilled]}
-              />
-            ) : (
-              <View key={i} style={styles.dartDot} />
-            )
-          )}
-        </View>
-      </View>
+      <GameHud
+        onExit={() => navigation.goBack()}
+        centerContent={
+          <View style={styles.titlePill}>
+            <Icon name="skull" size={14} color={colors.killer} />
+            <Text style={styles.title}>KILLER</Text>
+          </View>
+        }
+        dartsThisTurn={dartsThisTurn}
+      />
       <PhaseBanner phase="play" isKillerNow={!!activeKiller.isKiller} />
 
       <View style={styles.activeBanner}>
@@ -498,20 +485,6 @@ export function KillerGameScreen({ config }: Props) {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  exitBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   titlePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -548,16 +521,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textMuted,
   },
-  dartsIndicator: { flexDirection: 'row', gap: 6 },
-  dartDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.bgCardAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dartDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
   phaseTitle: {
     fontFamily: fonts.display,
     fontSize: 30,
