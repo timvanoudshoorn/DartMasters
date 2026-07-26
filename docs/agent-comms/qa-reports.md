@@ -329,3 +329,183 @@ regressions in `computePersonalBests`'s existing consumers
 round — only one cosmetic writeup inaccuracy noted above (Section 2,
 `undefined` vs `false` for `newBest` on the winner's cells), which has
 zero functional or visual effect and isn't worth a commit.
+
+## Round: Achievement-celebration collab + tournament abandon banner + CheckoutTrainer per-player storage
+
+`npx tsc --noEmit` — clean (no output) before and after this pass. No
+fixes were needed anywhere; all three areas verified directly against
+code, not against the collab doc / build-log prose.
+
+### 1. Achievement-celebration collab — PASS
+
+- **`newAchievementsFromMatch` is genuinely additive:**
+  `src/logic/achievements.ts:186-197` (`computeAchievements`) has no diff
+  markers — untouched. Grepped `computeAchievements` call sites repo-wide:
+  only `AchievementsScreen.tsx` and the new `newAchievementsFromMatch`
+  itself (`achievements.ts:223,224`) call it — matches the "only existing
+  call site is `AchievementsScreen.tsx`" claim exactly.
+- **False→true diffing read directly, not trusted from the writeup:**
+  `achievements.ts:218-234` — `withMatch = computeAchievements(matches, ...)`,
+  `withoutMatch` on `matches.filter(m => m.id !== thisMatchId)`, then
+  `withMatch.filter(withStatus => withStatus.earned && (!beforeStatus ||
+  !beforeStatus.earned))`. Correct: catches both "never existed before"
+  (`!beforeStatus`, can't happen today since `ACHIEVEMENTS` is a fixed list,
+  but correctly defensive) and the real case, "was false, now true."
+  `earned` is `progress >= target` (line 195), and `getProgress` functions
+  are all monotonic non-decreasing as more matches accumulate (win counts,
+  streaks, elimination counts, etc.) — a strict boolean flip is unambiguous
+  here, no tie-breaking needed, matches the doc's own reasoning.
+- **`GameSummaryScreen.tsx` combined row, verified in the actual JSX**
+  (`GameSummaryScreen.tsx:296-363`): `extraAchievements = isWinner ?
+  newAchievements : []` (line 315) sits right next to `extraNewBests`
+  (line 306-308), both mapped inside the same `<View style=
+  {styles.extraBestsRow}>` (line 332-333), gated by one combined condition
+  `extraNewBests.length > 0 || extraAchievements.length > 0` (line 332).
+  A match with both a new PB and a new achievement renders every chip in
+  one row — no second section, no duplicate container. Achievement chips
+  reuse `styles.extraBestChip`/`styles.extraBestText` verbatim (lines
+  349-361); only the icon (`ach.definition.icon`) and text (`UNLOCKED ·
+  {ach.definition.title}`) differ from the PB chip. Confirmed no new chip
+  style was invented.
+- **Haptic gate fix confirmed actually in place, not just claimed:**
+  `GameSummaryScreen.tsx:216,219` —
+  `if (!match?.winnerId || (newBests.length === 0 && newAchievements.length
+  === 0)) return;` with deps `[match?.winnerId, newBests.length,
+  newAchievements.length]`. Traced all three cases directly: achievement-
+  only (`newBests=[]`, `newAchievements=[x]`) → `&&` is false → gate passes
+  → `haptic.rigid()` fires (this was the bug, confirmed fixed). PB-only
+  (`newBests=[x]`, `newAchievements=[]`) → unchanged from before, still
+  fires. Both non-empty → still exactly one `setTimeout`/one `haptic.rigid()`
+  call, since there's only one `useEffect` and no per-item loop (line 217).
+  No double-firing possible structurally, not just by observation.
+- **Losers never see achievement chips:** `extraAchievements = isWinner ?
+  newAchievements : []` (line 315) — same `isWinner` scoping as
+  `extraNewBests` one line above, no separate gating logic to get wrong.
+- **Draw safety:** `GameSummaryScreen.tsx:137-139` —
+  `setNewAchievements(found?.winnerId ? newAchievementsFromMatch(...) : [])`.
+  A draw has `winnerId: null` (existing F12 behavior), so this short-
+  circuits to `[]` without ever calling into `achievements.ts` — no crash
+  path, identical pattern to the PB call one line above.
+- **No interference between the two collabs, the specific cross-check this
+  round exists for:** both `newBests` and `newAchievements` are independent
+  state populated from independent function calls in the same effect
+  (lines 134-139), both read the same `matches`/`found.winnerId`/`found.id`
+  already resolved once — no double-fetch, no shared mutable state. They
+  only ever meet at two points: the shared `extraBestsRow` container
+  (rendering) and the shared haptic gate (lines 216-219) — both confirmed
+  correct above. `newBestCellLabels` (X01 grid-cell badges) and
+  `newAchievements` never overlap: achievements have no cell-mapping logic
+  at all (line 315 doesn't touch `newBestCellLabels`), so there's no shared
+  lookup table where one feature's ids could collide with the other's.
+
+### 2. Tournament resume/abandon banner — PASS
+
+- **"Both banners visible" reasoning traced, not accepted on prose:**
+  `HomeScreen.tsx:89-102` (`continueTournamentInfo`) — line 91:
+  `if (activeMatch?.tournamentContext?.tournamentId === activeTournament.id)
+  return null;`. Confirmed this is a real id comparison against the same
+  `ActiveMatchStorage` pointer `continueMatchInfo` reads (line 73-80), not
+  a separate/stale source. So: mid-match tournament state → `activeMatch`
+  is set with `tournamentContext.tournamentId` equal to the in-progress
+  tournament's id → `continueTournamentInfo` returns `null` → only Continue
+  Match shows. Idle-between-matches state → `activeMatch` is `null` (cleared
+  by `GameScreen`'s unmount cleanup, `activeMatch.ts`/`GameScreen.tsx:21-26`)
+  → id comparison is `undefined === activeTournament.id` → false → Continue
+  Tournament shows. No case produces both banners for the same tournament.
+- **Abandon action:** `TournamentBracketScreen.tsx:72-88` —
+  `Alert.alert` destructive-confirm, `onPress` does
+  `await TournamentStorage.remove(tournament.id); navigation.popToTop();`.
+  Removes the correct tournament (closure over the loaded `tournament`
+  object, not a stale id) and returns to Home, where the removed tournament
+  will no longer appear in `TournamentStorage.getAll()` on next focus.
+  `TournamentBracketScreen.tsx:47`'s `if (!tournament) return <Screen />`
+  guard means no crash if a stray re-render happens between `remove()` and
+  `popToTop()` unmounting the screen.
+- **Dangling-pointer edge case, traced through actual navigation paths
+  rather than assumed:** confirmed `TournamentBracketScreen` is only
+  reachable via three call sites (`GameSummaryScreen.tsx:420` replace-after-
+  finishing, `HomeScreen.tsx:194` Continue Tournament banner, and
+  `TournamentSetupScreen.tsx:164` replace-after-creating) — no standalone
+  tournament list screen exists. Traced the specific worry (abandon leaving
+  a stale `ActiveMatchStorage`/`PendingTournamentMatchStorage` pointer):
+  - `GameScreen.tsx:21-26` sets `ActiveMatchStorage` on mount, clears it on
+    unmount unconditionally. Since Continue Tournament is suppressed
+    whenever `activeMatch` points at the same tournament (above), the only
+    way to reach the Abandon button is when `activeMatch` is *already*
+    `null` for that tournament (either GameScreen cleanly unmounted, or a
+    crash-resume was itself resolved) — so there is no reachable state
+    where Abandon fires while `ActiveMatchStorage` still points at the
+    tournament being deleted.
+  - `PendingTournamentMatchStorage` is cleared by `GameSummaryScreen.tsx:177`
+    immediately after every tournament match result is recorded, and is
+    only ever re-set by `GameScreen.tsx:34-40` when the *next* matchup
+    starts. The idle-between-matches window Abandon targets is therefore
+    always a window where this pointer is already empty. Even in the crash
+    variant (pointer left set from a matchup that never finished), the very
+    next match played anywhere in the app — tournament or casual — either
+    overwrites or clears it at `GameScreen.tsx:34-40` before
+    `GameSummaryScreen` could ever read it, and `GameSummaryScreen` is only
+    reachable via `navigation.replace` immediately after a match completes
+    (confirmed via repo-wide grep for `'GameSummary'`), never independently
+    for an old match. **No dangling-pointer bug found** through this trace.
+  - Noted, not a regression from this collab: if two tournaments are
+    `'inProgress'` simultaneously, `HomeScreen.tsx:50` only surfaces
+    `tournaments.find(t => t.status === 'inProgress')` (the first one) —
+    a pre-existing single-active-tournament assumption baked into the
+    whole feature (per Roadmap's own scoping in the head log — "multiple
+    concurrent tournaments isn't a real use case"), not something this
+    round introduced or needs to fix.
+
+### 3. CheckoutTrainer per-player storage + picker — PASS
+
+- **Migration fallback confirmed correct by reading the code:**
+  `storage.ts:154-166` (`getBest`) — legacy plain-number shape returns
+  directly (every not-yet-migrated player sees it, since the raw value is
+  re-read fresh on every call rather than consumed/deleted). Once any
+  player calls `setBest` (`storage.ts:167-174`), the legacy number is
+  folded into `blob[LEGACY_FALLBACK_FIELD]` (not discarded) and only the
+  calling player's own key is written — every other player's next
+  `getBest` still finds `LEGACY_FALLBACK_FIELD in raw` and returns the
+  preserved legacy value, not 0. Confirmed this holds for *every* reader by
+  reading `getBest`'s fallback chain (`playerId in raw` → `LEGACY_FALLBACK_FIELD
+  in raw` → `0`) rather than trusting the report's description.
+- **Switching players resets streak state correctly:**
+  `CheckoutTrainerScreen.tsx:70-84` — the `activePlayerId` effect calls
+  `CheckoutTrainerStorage.getBest(activePlayerId)` for the new player's
+  best *and* unconditionally does `setStreak(0); setResult(null);` in the
+  same effect body. No stale streak carries over; the in-progress streak
+  belongs to whoever's currently throwing, matching the in-code comment.
+- **Zero-players case clean:** `CheckoutTrainerScreen.tsx:192-197` renders
+  `EmptyState` in place of the whole trainer UI when `players.length === 0`.
+  Read the full file (`storage.ts` imports, `CheckoutTrainerStorage`/
+  `PlayerStorage` usage) — no leftover single-global-key code path, no
+  unused imports, no dead placeholder logic from the pre-picker interim
+  state the Logic Agent had built. Picker itself (`PlayerFilterChips`,
+  line 200-202) only renders when `players.length > 1`, matching the
+  existing `AchievementsScreen`/`StatsTrendsScreen` convention for the same
+  component.
+
+## Fixed directly
+
+Nothing needed fixing this round — all three areas passed on direct
+inspection.
+
+## Flagged, not actioned (judgment calls, not bugs)
+
+1. Pre-existing single-active-tournament assumption (`HomeScreen.tsx:50`
+   only surfaces one `'inProgress'` tournament) — not a regression from
+   this round's abandon-banner work, already a scoped-out design choice
+   per the head log. No action needed unless multi-tournament support is
+   ever requested.
+
+## Overall verdict: SHIP AS-IS
+
+All three areas hold up under direct tracing against the actual code —
+achievement/PB collab interaction (shared `extraBestsRow` container,
+shared haptic gate) has no interference, the achievement-only haptic fix
+is genuinely in place, losers and draws are both safe. Tournament
+abandon's dangling-pointer worry was traced end to end through
+`GameScreen`'s mount/unmount lifecycle and found structurally impossible
+to hit, not merely "probably fine." CheckoutTrainer's migration fallback
+and per-player streak reset both check out by reading the implementation
+directly. `npx tsc --noEmit` clean throughout. No commits needed.
