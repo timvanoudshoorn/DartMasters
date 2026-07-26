@@ -38,6 +38,17 @@ export const colors = {
   triple: COLORS.accentHot,
   bull: COLORS.accentHot,
 
+  // Named one-offs closing audit gaps (see docs/ui-redesign/audit.md +
+  // design-system.md). NOTE: `colors.gold` already means COLORS.accentHot
+  // (used as a StatPill accent across several screens) — the new medal
+  // colors are aliased as medalGold/medalSilver/medalBronze to avoid
+  // silently redefining that existing meaning.
+  onFill: COLORS.onFill,
+  killer: COLORS.killer,
+  medalGold: COLORS.gold,
+  medalSilver: COLORS.silver,
+  medalBronze: COLORS.bronze,
+
   playerPalette: [
     '#C1A536',
     '#4C9AFF',

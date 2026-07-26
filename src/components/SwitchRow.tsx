@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { haptic } from '../sound/haptics';
+import { PressableScale } from './primitives/PressableScale';
 import { colors, fonts, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
 import { SPRING_SNAPPY } from '../theme/motion';
@@ -47,18 +47,17 @@ export function SwitchRow({ label, value, onChange }: SwitchRowProps) {
   }));
 
   return (
-    <Pressable
-      onPress={() => {
-        haptic.tick();
-        onChange(!value);
-      }}
+    <PressableScale
+      onPress={() => onChange(!value)}
+      haptic="tick"
+      scaleTo={0.97}
       style={styles.container}
     >
       <Text style={styles.label}>{label}</Text>
       <Animated.View style={[styles.track, trackStyle]}>
         <Animated.View style={[styles.thumb, thumbStyle]} />
       </Animated.View>
-    </Pressable>
+    </PressableScale>
   );
 }
 

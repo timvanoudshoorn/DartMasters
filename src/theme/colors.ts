@@ -38,6 +38,15 @@ export const COLORS = {
   bust: '#D93A2E',
   bustGlow: 'rgba(217,58,46,0.13)',
   bustBorder: 'rgba(217,58,46,0.5)',
+
+  // Named one-offs that were previously duplicated hardcoded hex (see
+  // docs/ui-redesign/audit.md) — not part of the elevation/accent families,
+  // just given a shared name so they stop being re-invented per screen.
+  onFill: '#0A0A0A',
+  killer: '#9B6BFF',
+  gold: '#E8C84A',
+  silver: '#C7CDD6',
+  bronze: '#C98A4F',
 };
 
 export const RADIUS = {
