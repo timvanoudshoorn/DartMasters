@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeInDown,
   ZoomIn,
@@ -12,8 +12,7 @@ import Animated, {
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
-import { PlayerAvatar } from '../components/PlayerAvatar';
-import { PressableScale } from '../components/primitives/PressableScale';
+import { PlayerFilterChips } from '../components/PlayerFilterChips';
 import { Screen } from '../components/Screen';
 import { AchievementStatus, computeAchievements } from '../logic/achievements';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
@@ -71,29 +70,7 @@ export function AchievementsScreen() {
         />
       ) : (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.playerRow}
-          >
-            {players.map((p) => {
-              const active = p.id === selectedPlayerId;
-              return (
-                <PressableScale
-                  key={p.id}
-                  onPress={() => setSelectedPlayerId(p.id)}
-                  haptic="tick"
-                  scaleTo={0.95}
-                  style={[styles.playerChip, active && styles.playerChipActive]}
-                >
-                  <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={24} />
-                  <Text style={[styles.playerChipLabel, active && styles.playerChipLabelActive]} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                </PressableScale>
-              );
-            })}
-          </ScrollView>
+          <PlayerFilterChips players={players} selectedId={selectedPlayerId} onSelect={setSelectedPlayerId} />
 
           {matches.filter((m) => selectedPlayerId && m.results[selectedPlayerId]).length === 0 ? (
             <EmptyState icon="star" title="No badges yet" subtitle="Play a match to start earning achievements" />
@@ -130,7 +107,7 @@ function BadgeCard({ status, index }: { status: AchievementStatus; index: number
             entering={ZoomIn.delay(index * STAGGER_MS + 150).springify().damping(11)}
             style={styles.earnedBadge}
           >
-            <Icon name="checkmark" size={11} color="#0A0A0A" />
+            <Icon name="checkmark" size={11} color={colors.onFill} />
           </Animated.View>
         )}
       </View>
@@ -166,34 +143,6 @@ function ProgressFill({ percent, delay }: { percent: number; delay: number }) {
 }
 
 const styles = StyleSheet.create({
-  playerRow: {
-    gap: spacing.sm,
-    paddingBottom: spacing.lg,
-  },
-  playerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.full,
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.sm + 2,
-  },
-  playerChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '14',
-  },
-  playerChipLabel: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    color: colors.textMuted,
-    maxWidth: 90,
-  },
-  playerChipLabelActive: {
-    color: colors.textPrimary,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
