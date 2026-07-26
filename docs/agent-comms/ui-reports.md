@@ -751,3 +751,82 @@ Files changed: `src/components/primitives/PressableScale.tsx`,
 `src/components/SwitchRow.tsx`. `npx tsc --noEmit` clean. Commit:
 "UI Agent: add accessibility semantics to PressableScale, wire switch
 role in SwitchRow".
+
+## Round: ChallengesScreen player picker + accessibility labeling Phase 2
+
+Two independent tasks this round. `npx tsc --noEmit` clean after each task
+and at the end.
+
+### Task 1: ChallengesScreen player picker
+
+Read `src/logic/challengeProgress.ts` first — `computeDailyChallengeReport(selectedPlayerId?: string)`
+was already committed by the Logic Agent: if `selectedPlayerId` is provided
+and matches an existing player, it's used as the `primaryPlayer`; otherwise
+it falls back to the oldest-created player (same as before the param
+existed). No changes made to that file.
+
+Added a `PlayerFilterChips` row to `src/screens/ChallengesScreen.tsx`,
+following `CheckoutTrainerScreen.tsx`'s established convention exactly:
+shown only when `players.length > 1`, and the initial selection defaults to
+the oldest-created player (mirrors the `oldestPlayer` fallback already
+inside `computeDailyChallengeReport`, so the very first render's report is
+identical to before the picker existed). Player list loads via a new
+`useFocusEffect` (`PlayerStorage.getAll()`), and a second `useFocusEffect`
+keyed on `selectedPlayerId` calls `computeDailyChallengeReport(selectedPlayerId
+?? undefined)` to refresh the report whenever the selection changes or the
+screen refocuses. Selecting a different player re-fetches and re-renders
+the solo/multiplayer challenge lists for that player.
+
+**Zero-players case:** unchanged — the screen still shows the existing
+`"Add a player profile to start tracking daily challenges."` hint text
+(driven by `report.playerId === null`), no `EmptyState` component existed
+here before and none was added.
+
+Files: `src/screens/ChallengesScreen.tsx`. Commit `4a1dc43`.
+
+### Task 2: Accessibility labeling, Phase 2
+
+Read all 7 files named in the brief. All 7 genuinely needed something —
+none were already labeled or structured differently than expected.
+
+- **`src/components/Header.tsx`** — added `accessibilityLabel="Go back"`
+  to the icon-only back-button `PressableScale`.
+- **`src/components/GameHud.tsx`** — added `accessibilityLabel="Exit game"`
+  to the icon-only exit button, and `accessibilityLabel="Undo last dart"`
+  to `HudUndoButton`'s `PressableScale`.
+- **`src/components/DartPad.tsx`** — added a computed
+  `` `${multiplierLabel} ${n}` `` label (e.g. "Single 20"/"Double 20"/"Triple 20")
+  to each number tile, reflecting the currently-armed multiplier state;
+  `"Double bull"`/`"Bull"` on the bull button (matching its own
+  `multiplier >= 2` display logic); `"Miss"` on the miss button.
+- **`src/components/MultiplierSelector.tsx`** — added `accessibilityLabel`
+  (the segment's own `SINGLE`/`DOUBLE`/`TRIPLE` text) and
+  `accessibilityState={{ selected }}` to each segment. This one already had
+  visible text labels (not strictly icon-only), but the brief named it
+  explicitly as a selectable segmented control worth the same treatment.
+- **`src/components/TabBar.tsx`** — added `accessibilityLabel={opt.label}`
+  and `accessibilityState={{ selected: active }}` to each tab.
+- **`src/components/PlayerFilterChips.tsx`** — added
+  `accessibilityLabel={p.name}` and `accessibilityState={{ selected: active }}`
+  to each chip.
+- **`src/components/PlayerPairChips.tsx`** — added
+  `accessibilityLabel={p.name}` and `accessibilityState={{ selected }}`
+  (slot-picked state) to each chip.
+- **`src/components/PlayerSelectGrid.tsx`** — added
+  `accessibilityLabel={p.name}` and `accessibilityState={{ selected }}` to
+  each player chip (the "Add player" chip at the end was left alone — it's
+  an action button, not a selectable item, so no `selected` state applies).
+
+All additions are additive only — no layout/behavior changes. Relied on
+`PressableScale`'s existing `accessibilityRole` default (`'button'`) rather
+than re-specifying it anywhere.
+
+Files: `src/components/Header.tsx`, `src/components/DartPad.tsx`,
+`src/components/GameHud.tsx`, `src/components/MultiplierSelector.tsx`,
+`src/components/TabBar.tsx`, `src/components/PlayerFilterChips.tsx`,
+`src/components/PlayerPairChips.tsx`, `src/components/PlayerSelectGrid.tsx`.
+Commit `6314fda`.
+
+### Final check
+
+`npx tsc --noEmit` clean after both tasks and at the end of the round.
