@@ -6,6 +6,7 @@ export type HomeStackParamList = {
 
 export type PlayStackParamList = {
   ModeSelect: undefined;
+  Rules: { gameType?: GameType } | undefined;
   GameSetup: { gameType: GameType };
   Game: { config: GameConfig; tournamentContext?: TournamentMatchContext };
   GameSummary: { matchId: string; tournamentContext?: TournamentMatchContext };
@@ -35,6 +36,7 @@ export type RootStackParamList = {
   Achievements: undefined;
   CheckoutTrainer: undefined;
   ModeSelect: undefined;
+  Rules: { gameType?: GameType } | undefined;
   GameSetup: { gameType: GameType };
   BullOff: { config: GameConfig };
   Game: { config: GameConfig; tournamentContext?: TournamentMatchContext };

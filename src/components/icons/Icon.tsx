@@ -58,7 +58,8 @@ export type IconName =
   | 'search'
   | 'share'
   | 'download'
-  | 'upload';
+  | 'upload'
+  | 'info';
 
 interface IconProps {
   name: IconName;
@@ -126,6 +127,7 @@ const MAP: Record<IconName, Glyph> = {
   share: { set: 'feather', glyph: 'share-2' },
   download: { set: 'feather', glyph: 'download' },
   upload: { set: 'feather', glyph: 'upload' },
+  info: { set: 'feather', glyph: 'info' },
 };
 
 export function Icon({ name, size = 24, color = '#FFFFFF' }: IconProps) {
