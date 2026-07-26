@@ -396,6 +396,13 @@ export function GameSetupScreen() {
         )}
 
         {gameType === 'bobs27' && <Text style={styles.hint}>20 rounds, doubles 1 through 20. Highest score wins.</Text>}
+
+        {gameType === 'halveIt' && (
+          <Text style={styles.hint}>
+            7 rounds — 20, Double, 19, Triple, 18, 17, Bull. Miss the target and your score is
+            halved. Highest total wins.
+          </Text>
+        )}
       </Card>
       </Animated.View>
 

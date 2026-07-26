@@ -107,7 +107,7 @@ export function MatchDetailScreen() {
               {!isX01 && !isCricket && (
                 <View style={styles.statsGrid}>
                   <StatPill label="Darts" value={r.dartsThrown} />
-                  {(match.gameType === 'shanghai' || match.gameType === 'bobs27') && (
+                  {(match.gameType === 'shanghai' || match.gameType === 'bobs27' || match.gameType === 'halveIt') && (
                     <StatPill label="Score" value={r.totalScored} accent={colors.neonCyan} />
                   )}
                 </View>

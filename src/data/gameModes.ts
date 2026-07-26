@@ -39,6 +39,13 @@ export const GAME_MODES: GameModeInfo[] = [
     icon: 'flame',
     color: colors.secondary,
   },
+  {
+    type: 'halveIt',
+    title: 'Halve It',
+    subtitle: 'Miss the target, lose half your score',
+    icon: 'scissors',
+    color: colors.secondary,
+  },
 ];
 
 export function getGameModeInfo(type: GameType): GameModeInfo {

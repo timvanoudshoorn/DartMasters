@@ -7,7 +7,8 @@ export type GameType =
   | 'killer'
   | 'shanghai'
   | 'practice170'
-  | 'bobs27';
+  | 'bobs27'
+  | 'halveIt';
 
 export type OutMode = 'double' | 'master' | 'straight';
 export type InMode = 'straight' | 'double';
@@ -125,6 +126,36 @@ export interface Bobs27PlayerState {
   score: number;
   round: number; // 1-20, the double currently being attempted
   finished: boolean;
+}
+
+// ---------- Halve It ----------
+
+// Classic 7-round sequence: hit the round's target with your 3 darts and the
+// points earned are added to your running total; hit nothing relevant and
+// the total is halved (rounded down) instead. 'number' rounds only count the
+// fixed segment; 'anyDouble'/'anyTriple' count a qualifying multiplier on any
+// segment; 'bull' only counts the bullseye (single or double).
+export type HalveItTargetKind = 'number' | 'anyDouble' | 'anyTriple' | 'bull';
+
+export interface HalveItTarget {
+  kind: HalveItTargetKind;
+  segment?: number; // fixed segment for 'number' and 'bull' rounds
+  label: string;
+}
+
+export const HALVE_IT_SEQUENCE: HalveItTarget[] = [
+  { kind: 'number', segment: 20, label: '20' },
+  { kind: 'anyDouble', label: 'DOUBLE' },
+  { kind: 'number', segment: 19, label: '19' },
+  { kind: 'anyTriple', label: 'TRIPLE' },
+  { kind: 'number', segment: 18, label: '18' },
+  { kind: 'number', segment: 17, label: '17' },
+  { kind: 'bull', label: 'BULL' },
+];
+
+export interface HalveItPlayerState {
+  playerId: string;
+  score: number;
 }
 
 // ---------- Match history / stats ----------

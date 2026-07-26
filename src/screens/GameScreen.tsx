@@ -7,6 +7,7 @@ import { AroundTheClockGameScreen } from './game/AroundTheClockGameScreen';
 import { KillerGameScreen } from './game/KillerGameScreen';
 import { ShanghaiGameScreen } from './game/ShanghaiGameScreen';
 import { Bobs27GameScreen } from './game/Bobs27GameScreen';
+import { HalveItGameScreen } from './game/HalveItGameScreen';
 import { ActiveMatchStorage } from '../storage/activeMatch';
 import { GameConfig } from '../types';
 
@@ -40,6 +41,8 @@ export function GameScreen() {
       return <ShanghaiGameScreen config={config} />;
     case 'bobs27':
       return <Bobs27GameScreen config={config} />;
+    case 'halveIt':
+      return <HalveItGameScreen config={config} />;
     default:
       return null;
   }
