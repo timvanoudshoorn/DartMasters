@@ -16,7 +16,7 @@ import { RootStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
-import { STAGGER_MS } from '../theme/motion';
+import { reducedMs, staggerDelay, STAGGER_MS } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 
 export function StatsTrendsScreen() {
@@ -87,7 +87,7 @@ export function StatsTrendsScreen() {
                 {personalBests.map((pb, i) => (
                   <Animated.View
                     key={pb.id}
-                    entering={FadeInDown.delay(i * STAGGER_MS).duration(240)}
+                    entering={FadeInDown.delay(staggerDelay(i)).duration(240)}
                     style={styles.recordsPillWrap}
                   >
                     <StatPill label={pb.label} value={pb.formatted} accent={pb.value !== null ? colors.primaryHot : undefined} />
@@ -122,7 +122,7 @@ export function StatsTrendsScreen() {
               </Animated.View>
 
               <Animated.View
-                entering={FadeInDown.delay(STAGGER_MS).duration(280)}
+                entering={FadeInDown.delay(reducedMs(STAGGER_MS)).duration(280)}
                 style={styles.statsGrid}
               >
                 <StatPill label="Current" value={trend.currentAvg.toFixed(1)} accent={colors.primaryHot} />
