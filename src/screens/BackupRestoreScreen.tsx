@@ -7,6 +7,7 @@ import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { Screen } from '../components/Screen';
 import { exportAllData, exportAllDataAsJson, importAllData } from '../logic/backup';
+import { SettingsStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
 
@@ -28,6 +29,11 @@ export function BackupRestoreScreen() {
         message: json,
         title: 'DartMasters Backup',
       });
+      // Share.share resolving without throwing is this screen's existing
+      // definition of export success (it doesn't inspect the share sheet's
+      // result action) — record the timestamp at the same point.
+      const settings = await SettingsStorage.get();
+      await SettingsStorage.save({ ...settings, lastBackupAt: Date.now() });
     } catch (err) {
       console.error('[BackupRestoreScreen] Export failed:', err);
       Alert.alert('Export failed', 'Something went wrong creating the backup. Please try again.');

@@ -15,6 +15,8 @@ export interface AppSettings {
   soundEnabled: boolean;
   hapticsEnabled: boolean;
   reducedMotionEnabled: boolean;
+  /** Epoch ms of the last successful export via BackupRestoreScreen; null until the first export. */
+  lastBackupAt: number | null;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -25,6 +27,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   soundEnabled: true,
   hapticsEnabled: true,
   reducedMotionEnabled: false,
+  lastBackupAt: null,
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {

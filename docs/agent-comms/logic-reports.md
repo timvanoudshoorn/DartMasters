@@ -88,3 +88,57 @@ No decisions needed here beyond confirming the existing pattern was already
 applied correctly; nothing was in a half-fixed state.
 
 `npx tsc --noEmit` re-confirmed clean at the end of the session (no output).
+
+## Round: Backup staleness nudge (Roadmap proposal #8, Logic half)
+
+Added the additive state field and the single write point for it; deferred
+all display work to the UI Agent per the task brief.
+
+- `src/storage/storage.ts`: added `lastBackupAt: number | null` to
+  `AppSettings` (default `null` in `DEFAULT_SETTINGS`) — exact same
+  additive-optional-with-default shape as `hapticsEnabled`/
+  `reducedMotionEnabled`. No migration needed: `SettingsStorage.get()`
+  already does `{...DEFAULT_SETTINGS, ...stored}`, so any settings blob
+  persisted before this change round-trips with `lastBackupAt: null`.
+
+- **Where the timestamp write lives, and why:** in
+  `src/screens/BackupRestoreScreen.tsx`'s `handleExport`, immediately after
+  `await Share.share(...)` resolves without throwing — NOT inside
+  `src/logic/backup.ts`. Reasoning: `backup.ts`'s `exportAllData()` only
+  *gathers* the data snapshot; it has no knowledge of whether the user's
+  share/export action actually completed. The screen's `handleExport` is
+  the only place "did the export succeed" is determined at all, and it
+  already defines success loosely — it doesn't inspect `Share.share`'s
+  resolved `result.action` (e.g. `dismissedAction` on iOS), it only
+  distinguishes "threw → catch → Alert('Export failed')" from "didn't
+  throw". Setting `lastBackupAt` at that same point matches the app's
+  existing, only definition of export success rather than inventing a
+  stricter one. Wiring added:
+  ```ts
+  await Share.share({ message: json, title: 'DartMasters Backup' });
+  const settings = await SettingsStorage.get();
+  await SettingsStorage.save({ ...settings, lastBackupAt: Date.now() });
+  ```
+  This is a `try` block, so if `SettingsStorage.save` itself threw it would
+  fall into the existing catch/Alert path — acceptable, since that would be
+  a genuine storage failure worth surfacing the same way other export
+  failures are.
+- No changes to `backup.ts`, `BackupRestoreScreen.tsx`'s UI/JSX/layout, or
+  any other screen. `GameSummaryScreen.tsx` and `GameSetupScreen.tsx` were
+  not touched (out of scope this round per the brief — Rematch work is
+  held back to avoid colliding with an in-flight Animation Agent task).
+- `npx tsc --noEmit` clean (no output).
+
+**For the UI Agent (next round, display half):**
+- Field: `AppSettings.lastBackupAt: number | null` in
+  `src/storage/storage.ts`, read via `SettingsStorage.get()` (same as any
+  other setting). `null` means "never exported"; otherwise it's an epoch-ms
+  `Date.now()` value from the moment of the most recent successful export.
+- It updates itself — nothing further to wire for writes. Build whatever
+  staleness UI/display against `settings.lastBackupAt` (e.g. relative time
+  "Last backed up 3 days ago" / a warning state past some threshold) purely
+  as a read; no new write path needed.
+- Natural home for a display is `BackupRestoreScreen.tsx` itself (it already
+  has the export/import UI) or a Settings/Home surface — your call, no
+  constraint from this side beyond "don't add new writes, just read the
+  field."
