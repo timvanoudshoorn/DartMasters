@@ -30,7 +30,7 @@ import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { PendingTournamentMatchStorage, TournamentStorage } from '../storage/tournament';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS, FONT } from '../theme/colors';
-import { reducedMs } from '../theme/motion';
+import { reducedMs, SPRING_BOUNCY } from '../theme/motion';
 import { isReducedMotionEnabled } from '../theme/motionPreference';
 import { GameConfig, MatchRecord, Player, Tournament, TournamentMatchContext } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
@@ -93,6 +93,12 @@ const REVEAL = {
   stats: 900,
   statStep: 110,
   actions: 1400,
+  // Extra beat after a stat card/chip has already landed before its "NEW
+  // BEST" badge pops — reads as "the card arrives, then a badge lands on
+  // it" rather than everything appearing at once. Only this *extra* delay
+  // is reduced-motion-gated (see R.newBestPop below); the badge's own
+  // SPRING_BOUNCY pop always plays, it just loses its head start.
+  newBestPop: 300,
 };
 
 export function GameSummaryScreen() {
@@ -180,6 +186,22 @@ export function GameSummaryScreen() {
     };
   }, [match?.winnerId]);
 
+  // One small accent haptic when a "NEW BEST" badge lands — timed to match
+  // the winner's first stat card (cardIndex 0, so its badge/chip pop delay
+  // below is R.stats + R.newBestPop, same sum used here). Fires at most
+  // once per ceremony even when several categories were newly set: the
+  // trophy thump and name-slam success roll already fired moments earlier
+  // in this same sequence, so stacking a tick per badge (there can be up to
+  // ~4 cell badges + 2 chips) would read as buzzing rather than a single
+  // "you just set a record" beat. `haptic.rigid` is otherwise unused on
+  // this screen — a sharp, premium click distinct from the heavy/success
+  // pair above, reserved for this one accent.
+  useEffect(() => {
+    if (!match?.winnerId || newBests.length === 0) return;
+    const t = setTimeout(() => haptic.rigid(), reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop));
+    return () => clearTimeout(t);
+  }, [match?.winnerId, newBests.length]);
+
   if (!match) return <Screen />;
 
   // Collapse the staged reveal choreography to near-instant under reduced
@@ -191,6 +213,7 @@ export function GameSummaryScreen() {
     stats: reducedMs(REVEAL.stats),
     statStep: reducedMs(REVEAL.statStep),
     actions: reducedMs(REVEAL.actions),
+    newBestPop: reducedMs(REVEAL.newBestPop),
   };
 
   const modeInfo = getGameModeInfo(match.gameType);
@@ -286,12 +309,19 @@ export function GameSummaryScreen() {
               {extraNewBests.length > 0 && (
                 <View style={styles.extraBestsRow}>
                   {extraNewBests.map((nb) => (
-                    <View key={nb.id} style={styles.extraBestChip}>
+                    <Animated.View
+                      key={nb.id}
+                      entering={ZoomIn.delay(delay + R.newBestPop)
+                        .springify()
+                        .damping(SPRING_BOUNCY.damping)
+                        .stiffness(SPRING_BOUNCY.stiffness)}
+                      style={styles.extraBestChip}
+                    >
                       <Icon name="medal" size={11} color={COLORS.positive} />
                       <Text style={styles.extraBestText}>
                         NEW BEST · {nb.label} {nb.formatted}
                       </Text>
-                    </View>
+                    </Animated.View>
                   ))}
                 </View>
               )}
@@ -299,13 +329,13 @@ export function GameSummaryScreen() {
               {isX01 && (
                 <>
                   <View style={styles.statsGrid}>
-                    <RevealStat label="3-Dart Avg" value={r.threeDartAvg} format={(n) => n.toFixed(1)} delay={delay} hot newBest={newBestCellLabels?.has('3-Dart Avg')} />
+                    <RevealStat label="3-Dart Avg" value={r.threeDartAvg} format={(n) => n.toFixed(1)} delay={delay} hot newBest={newBestCellLabels?.has('3-Dart Avg')} newBestPopDelay={delay + R.newBestPop} />
                     <RevealStat label="First 9" value={r.firstNineAvg || null} format={(n) => n.toFixed(1)} delay={delay} />
-                    <RevealStat label="Highest CO" value={r.highestCheckout || null} delay={delay} hot newBest={newBestCellLabels?.has('Highest CO')} />
+                    <RevealStat label="Highest CO" value={r.highestCheckout || null} delay={delay} hot newBest={newBestCellLabels?.has('Highest CO')} newBestPopDelay={delay + R.newBestPop} />
                     <RevealStat label="Legs" value={r.legsWon} delay={delay} />
                   </View>
                   <View style={[styles.statsGrid, { marginTop: spacing.sm }]}>
-                    <RevealStat label="180s" value={r.oneEighties} delay={delay} hot={r.oneEighties > 0} newBest={newBestCellLabels?.has('180s')} />
+                    <RevealStat label="180s" value={r.oneEighties} delay={delay} hot={r.oneEighties > 0} newBest={newBestCellLabels?.has('180s')} newBestPopDelay={delay + R.newBestPop} />
                     <RevealStat label="100+" value={r.count100Plus} delay={delay} />
                     <RevealStat
                       label="Checkout %"
@@ -313,7 +343,7 @@ export function GameSummaryScreen() {
                       format={(n) => `${Math.round(n)}%`}
                       delay={delay}
                     />
-                    <RevealStat label="Best Leg" value={r.bestLegDarts ?? null} delay={delay} newBest={newBestCellLabels?.has('Best Leg')} />
+                    <RevealStat label="Best Leg" value={r.bestLegDarts ?? null} delay={delay} newBest={newBestCellLabels?.has('Best Leg')} newBestPopDelay={delay + R.newBestPop} />
                   </View>
                 </>
               )}
@@ -387,6 +417,7 @@ function RevealStat({
   delay,
   hot,
   newBest,
+  newBestPopDelay,
 }: {
   label: string;
   value: number | null;
@@ -396,8 +427,14 @@ function RevealStat({
   /** This exact number is a personal best newly set by this match — takes
    * visual precedence over `hot` (record beats merely-notable). */
   newBest?: boolean;
+  /** When to pop the medal badge/caption in — already includes the extra
+   * "lands after its card" beat (R.newBestPop) and reduced-motion gating,
+   * computed by the caller since it needs cardIndex. Falls back to `delay`
+   * (simultaneous with the card) if not supplied. */
+  newBestPopDelay?: number;
 }) {
   const isNewBest = !!newBest && value !== null;
+  const popDelay = newBestPopDelay ?? delay;
   return (
     <View
       style={[
@@ -407,9 +444,16 @@ function RevealStat({
       ]}
     >
       {isNewBest && (
-        <View style={styles.newBestBadge}>
+        // A distinct, more celebratory pop than the card's own FadeInDown —
+        // this is the single most personally meaningful reveal on the
+        // screen, so it gets the same SPRING_BOUNCY overshoot as the trophy
+        // badge rather than blending into the ordinary stat-card entrance.
+        <Animated.View
+          entering={ZoomIn.delay(popDelay).springify().damping(SPRING_BOUNCY.damping).stiffness(SPRING_BOUNCY.stiffness)}
+          style={styles.newBestBadge}
+        >
           <Icon name="medal" size={11} color={COLORS.positive} />
-        </View>
+        </Animated.View>
       )}
       {value === null ? (
         <Text style={[styles.statValue, { color: colors.textFaint }]}>—</Text>
@@ -423,7 +467,14 @@ function RevealStat({
         />
       )}
       <Text style={styles.statLabel}>{label}</Text>
-      {isNewBest && <Text style={styles.newBestCaption}>NEW BEST</Text>}
+      {isNewBest && (
+        <Animated.Text
+          entering={ZoomIn.delay(popDelay).springify().damping(SPRING_BOUNCY.damping).stiffness(SPRING_BOUNCY.stiffness)}
+          style={styles.newBestCaption}
+        >
+          NEW BEST
+        </Animated.Text>
+      )}
     </View>
   );
 }
