@@ -91,6 +91,15 @@ export function HomeScreen() {
           </View>
           <View style={styles.headerActions}>
             <PressableScale
+              onPress={() => navigation.navigate('Search')}
+              style={styles.iconBtn}
+              haptic="light"
+              scaleTo={0.88}
+              hitSlop={8}
+            >
+              <Icon name="search" size={18} color={COLORS.text} />
+            </PressableScale>
+            <PressableScale
               onPress={() => Alert.alert("You're all caught up", 'No new notifications.')}
               style={styles.iconBtn}
               haptic="light"

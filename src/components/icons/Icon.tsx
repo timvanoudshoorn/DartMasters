@@ -54,7 +54,8 @@ export type IconName =
   | 'scissors'
   | 'trendUp'
   | 'trendDown'
-  | 'trendFlat';
+  | 'trendFlat'
+  | 'search';
 
 interface IconProps {
   name: IconName;
@@ -118,6 +119,7 @@ const MAP: Record<IconName, Glyph> = {
   trendUp: { set: 'feather', glyph: 'trending-up' },
   trendDown: { set: 'feather', glyph: 'trending-down' },
   trendFlat: { set: 'feather', glyph: 'minus' },
+  search: { set: 'feather', glyph: 'search' },
 };
 
 export function Icon({ name, size = 24, color = '#FFFFFF' }: IconProps) {
