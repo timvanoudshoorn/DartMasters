@@ -689,3 +689,65 @@ is unaffected when both are empty — identical to pre-change output.
 No haptic/motion added here — left for the Animation Agent's Stage 3, same
 as the PB work. Files changed: `src/screens/GameSummaryScreen.tsx` only.
 `npx tsc --noEmit` clean.
+
+## Round: PressableScale accessibility semantics
+
+Scope: `src/components/primitives/PressableScale.tsx`,
+`src/components/SwitchRow.tsx`. Confirmed by reading the file directly:
+`PressableScale` wraps `Gesture.Tap()` (react-native-gesture-handler)
+around a plain `Animated.View` with zero accessibility props — no
+`accessible`, `accessibilityRole`, or `accessibilityLabel`. Because it's
+built on Gesture Handler rather than core RN `Pressable`, it does not get
+these for free the way `Pressable`/`TouchableOpacity` do.
+
+**Final prop interface added** (all optional, backward-compatible):
+```ts
+accessibilityLabel?: string;
+accessibilityHint?: string;
+accessibilityRole?: AccessibilityRole; // defaults to 'button'
+accessibilityState?: AccessibilityState;
+```
+`accessible={true}` is now always set on the rendered `Animated.View`
+(unconditional — this component's whole purpose is being a tappable
+target). All four props are threaded straight onto that same
+`Animated.View` alongside the existing `animStyle`/`style`. No change to
+the `Gesture.Tap`/`Gesture.LongPress` construction, spring/scale values,
+or haptic/sound firing — purely additive JSX props.
+
+**Backward-compatibility confirmed:** every existing call site (13 files
+under `src/components/` plus every screen using `Button`, `Header`,
+`SwitchRow`, `SegmentButton`, `MultiplierSelector`, `OptionRow`, `TabBar`,
+`DartPad`, `GameHud`, `PlayerSelectGrid`, `PlayerFilterChips`,
+`PlayerPairChips`) passes none of the four new props today, so each
+resolves to defaults: `accessibilityRole="button"`, `accessible={true}`,
+no label/hint/state. That's strictly better than the prior zero-props
+state (screen readers now at least announce "button" and can focus the
+element) with no visual or behavioral change — `npx tsc --noEmit` is
+clean and no other file needed edits to keep compiling.
+
+**`SwitchRow.tsx` updated** as the one call site whose semantic role
+genuinely isn't "button": it now passes `accessibilityRole="switch"`,
+`accessibilityLabel={label}` (the row's own visible label text — free
+since it was already a prop), and `accessibilityState={{ checked: value
+}}` through to `PressableScale`. No other call sites were swept this
+round per the Roadmap Agent's own phasing recommendation.
+
+**Flagged for a future labeling pass** (not built this round):
+- `src/components/Header.tsx` — the back-button `PressableScale`
+  (line 21) is icon-only, no `accessibilityLabel`; needs something like
+  `accessibilityLabel="Back"`.
+- `src/components/DartPad.tsx`, `src/components/GameHud.tsx`,
+  `src/components/MultiplierSelector.tsx` — icon/number-only tap targets
+  (score keys, multiplier arm buttons) with no spoken label beyond
+  whatever their `<Text>` children render, which may not always match
+  intended screen-reader phrasing (e.g. "Double" vs a bare "D").
+- `src/components/TabBar.tsx`, `src/components/PlayerFilterChips.tsx`,
+  `src/components/PlayerPairChips.tsx`, `src/components/PlayerSelectGrid.tsx`
+  — selectable chip/tab rows that would benefit from
+  `accessibilityState={{ selected }}` in addition to a label, mirroring
+  the `SwitchRow` treatment done here.
+
+Files changed: `src/components/primitives/PressableScale.tsx`,
+`src/components/SwitchRow.tsx`. `npx tsc --noEmit` clean. Commit:
+"UI Agent: add accessibility semantics to PressableScale, wire switch
+role in SwitchRow".
