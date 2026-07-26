@@ -185,3 +185,47 @@ collapse toward 0 as designed.
 these 5) are now migrated. No remaining `i * STAGGER_MS`-style call sites
 are known to me outside game-logic-owned files I was told to stay out of
 this round.
+
+## Achievement-unlock celebration — motion + haptic (Stage 3, 2026-07-27)
+
+**Summary:** Closes out `docs/agent-comms/collab-achievement-celebration.md`
+(Logic → UI → Animation, fast-follow to the PB celebration collab above).
+Full detail and the four required traces are in that collab file's
+"Animation Agent — motion/haptic" section — short version below.
+
+**What was found already done vs. what needed fixing
+(`src/screens/GameSummaryScreen.tsx` only):**
+- **Motion — no change needed.** UI's Stage 2 diff had already wrapped the
+  achievement chips (`extraAchievements.map`) in the identical
+  `ZoomIn.delay(delay + R.newBestPop).springify().damping(SPRING_BOUNCY
+  .damping).stiffness(SPRING_BOUNCY.stiffness)` entrance already used for
+  the PB standalone chips one map above it, reusing `R.newBestPop` (no new
+  timing constant). Confirmed by reading the render path; nothing to add.
+- **Haptic gate — the flagged bug, fixed.** The existing accent
+  `useEffect`'s early-return condition was `if (!match?.winnerId ||
+  newBests.length === 0) return;`, so a match that unlocked an achievement
+  but set no new PB got a silent chip pop with zero haptic. Changed to
+  `if (!match?.winnerId || (newBests.length === 0 && newAchievements.length
+  === 0)) return;`, dependency array extended to
+  `[match?.winnerId, newBests.length, newAchievements.length]`. Still
+  exactly one `setTimeout`/`haptic.rigid()` call — same timing
+  (`reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop)`), same "fires
+  once per ceremony" guarantee, now triggered by PB-only, achievement-only,
+  or both.
+- `npx tsc --noEmit` clean.
+
+**Traces (full math in the collab file):**
+(a) achievement-only win — gate now passes, haptic fires (previously
+silent, now fixed). (b) PB-only win — unaffected, still fires exactly once,
+identical to pre-fix behavior. (c) both PB(s) and achievement(s) — still
+exactly one haptic (one effect, one timer, no per-item loop — was never at
+risk of double-firing). (d) reduced motion — achievement chip's
+`SPRING_BOUNCY` pop still plays in full, only its lead-in delay collapses
+to 0 (same "fast-forward, don't skip" precedent as the PB chips); haptic
+fires at 0ms alongside the other compressed reduced-motion beats.
+
+**Status: all 3 stages of `collab-achievement-celebration.md` are now
+complete** (Logic's `newAchievementsFromMatch` diffing, UI's chip
+rendering reusing the PB chip component, this stage's confirmation that
+entrance timing already matched + the haptic gate fix). Ready for
+QA/Integration Agent's cross-check.

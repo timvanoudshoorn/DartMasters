@@ -197,21 +197,26 @@ export function GameSummaryScreen() {
     };
   }, [match?.winnerId]);
 
-  // One small accent haptic when a "NEW BEST" badge lands — timed to match
-  // the winner's first stat card (cardIndex 0, so its badge/chip pop delay
-  // below is R.stats + R.newBestPop, same sum used here). Fires at most
-  // once per ceremony even when several categories were newly set: the
-  // trophy thump and name-slam success roll already fired moments earlier
-  // in this same sequence, so stacking a tick per badge (there can be up to
-  // ~4 cell badges + 2 chips) would read as buzzing rather than a single
-  // "you just set a record" beat. `haptic.rigid` is otherwise unused on
-  // this screen — a sharp, premium click distinct from the heavy/success
-  // pair above, reserved for this one accent.
+  // One small accent haptic when a "NEW BEST" badge or an achievement
+  // "UNLOCKED" chip lands — timed to match the winner's first stat card
+  // (cardIndex 0, so its badge/chip pop delay below is R.stats +
+  // R.newBestPop, same sum used here). Fires at most once per ceremony no
+  // matter how many categories/achievements were newly set, and no matter
+  // whether the match set a PB, unlocked an achievement, or both — the Head
+  // Agent's "one combined celebration pass" decision: reuse the same single
+  // accent rather than stacking a tick per badge/chip (there can be up to
+  // ~4 cell badges + several chips combined). The trophy thump and
+  // name-slam success roll already fired moments earlier in this same
+  // sequence, so a single extra tick here reads as one distinct "you just
+  // set a record / unlocked something" beat rather than buzzing.
+  // `haptic.rigid` is otherwise unused on this screen — a sharp, premium
+  // click distinct from the heavy/success pair above, reserved for this one
+  // accent.
   useEffect(() => {
-    if (!match?.winnerId || newBests.length === 0) return;
+    if (!match?.winnerId || (newBests.length === 0 && newAchievements.length === 0)) return;
     const t = setTimeout(() => haptic.rigid(), reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop));
     return () => clearTimeout(t);
-  }, [match?.winnerId, newBests.length]);
+  }, [match?.winnerId, newBests.length, newAchievements.length]);
 
   if (!match) return <Screen />;
 

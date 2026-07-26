@@ -155,4 +155,87 @@ existing haptic effect's dependency/gate only checks `newBests.length`.
 
 ## Animation Agent — motion/haptic (fill in below)
 
-*(pending — do not start until the UI section above is filled in)*
+**File:** `src/screens/GameSummaryScreen.tsx` only (no other files touched).
+
+**Motion — already correct as shipped by UI Stage 2, no change needed:** on
+reading the standing code, the achievement chips (`extraAchievements.map`,
+around line 344) were already wrapped in the identical entrance UI had
+given the PB standalone chips one line above them — same
+`Animated.View` / `entering={ZoomIn.delay(delay + R.newBestPop)
+.springify().damping(SPRING_BOUNCY.damping).stiffness(SPRING_BOUNCY.stiffness)}`,
+same `R.newBestPop` (the existing `reducedMs(REVEAL.newBestPop)` beat), same
+`styles.extraBestChip` container. No second timing constant was invented —
+achievement chips land in exactly the same beat as PB chips, as instructed.
+This is because both arrays (`extraNewBests`, `extraAchievements`) are
+mapped inside the same `extraBestsRow` block and UI's Stage 2 diff reused
+the whole chip-rendering pattern verbatim rather than writing a parallel
+one. Confirmed by reading the full render path top to bottom — nothing to
+add here.
+
+**Haptic gate — the actual bug, fixed:** the single `useEffect` right above
+(originally gated `if (!match?.winnerId || newBests.length === 0) return;`,
+deps `[match?.winnerId, newBests.length]`) has been changed to:
+
+```ts
+if (!match?.winnerId || (newBests.length === 0 && newAchievements.length === 0)) return;
+...
+}, [match?.winnerId, newBests.length, newAchievements.length]);
+```
+
+`haptic.rigid()` still fires at most once per ceremony, still timed to
+`reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop)` (unchanged —
+matches the winner's first-card badge/chip pop delay, cardIndex 0), it now
+just also considers achievements as a trigger. Comments above the effect
+were reworded to describe both badge and chip sources instead of only
+"NEW BEST" badges.
+
+**Traces:**
+
+(a) **Achievement-only win (no PB):** `newBests = []`, `newAchievements =
+[<1+ entries>]`. Gate: `newBests.length === 0` is true, but
+`newAchievements.length === 0` is false, so the combined `&&` is false →
+the early return does *not* fire → `setTimeout` schedules `haptic.rigid()`
+at the usual `R.stats + R.newBestPop` mark. Before this fix, this exact
+case returned early (silent chip pop) — now fixed.
+
+(b) **PB-only win (no achievement):** `newBests = [<1+ entries>]`,
+`newAchievements = []`. `newBests.length === 0` is false, so the `&&`
+short-circuits to false regardless of the achievements side → gate passes
+→ haptic fires exactly once, identical timing and behavior to before this
+change. No regression.
+
+(c) **Both PB(s) and achievement(s) in the same match:** both arrays
+non-empty → gate passes (as it already did before, via `newBests.length`
+alone) → still exactly **one** `setTimeout`/`haptic.rigid()` call from this
+one `useEffect` — there is only one effect, one `setTimeout`, no per-item
+loop, so there was never a risk of double-firing; adding
+`newAchievements.length` to the condition doesn't add a second effect or a
+second timer. Confirms the Head Agent's "one combined celebration pass,
+one haptic total" requirement holds for the both-case exactly as it does
+for PB-only.
+
+(d) **Reduced motion, achievement chip pop:** `isReducedMotionEnabled()`
+true → `R.newBestPop = reducedMs(REVEAL.newBestPop) = 0` (same collapse PB
+chips already got) → achievement chip's `ZoomIn.delay(delay + 0)` fires
+simultaneously with its parent card instead of visibly after it, but the
+`SPRING_BOUNCY` overshoot itself still plays in full (only the pre-delay
+collapses, matching the "fast-forward the choreography, don't skip the
+flourish" precedent already set for PB chips/badges in
+`collab-pb-celebration.md`). With reduced motion **on**, the haptic gate
+fix also means an achievement-only win now gets its `haptic.rigid()` at
+`reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop) = 0`, i.e.
+immediately on mount — consistent with how the PB-only reduced-motion trace
+already behaved (documented in the PB collab file), just now also reachable
+via the achievements branch of the condition.
+
+**Confirms all 3 stages of this collab are now closed:** Logic's
+`newAchievementsFromMatch` diffing (Stage 1), UI's chip rendering sharing
+the PB chip's exact component/placement (Stage 2), and this stage's haptic
+gate fix plus confirmation that the existing entrance treatment already
+satisfied the "same beat as PB chips" requirement (Stage 3) — no further
+work flagged for QA/Integration beyond the standard review pass.
+
+**Not touched:** `newAchievementsFromMatch`'s diffing logic, the chip
+JSX/copy/icon mapping, and the PB badge/chip code paths are all unchanged
+by this stage — only the haptic `useEffect`'s condition and dependency
+array were edited, plus surrounding comments.
