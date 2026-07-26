@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { COLORS, FONT } from '../../theme/colors';
 import { SPRING_BOUNCY } from '../../theme/motion';
+import { isReducedMotionEnabled } from '../../theme/motionPreference';
 
 export interface StingerEvent {
   /** Unique per occurrence so back-to-back identical stingers re-fire. */
@@ -38,20 +39,26 @@ export function EventStinger({ event, onDone }: EventStingerProps) {
 
   useEffect(() => {
     if (!event) return;
-    scale.value = 2.4;
+    // Still communicates the event (ONE EIGHTY, big checkout, etc.), so we
+    // fast-forward rather than skip — shorter hold, no bouncy overshoot.
+    const reduced = isReducedMotionEnabled();
+    const hold = reduced ? 350 : HOLD_MS;
+    scale.value = reduced ? 1 : 2.4;
     opacity.value = withSequence(
-      withTiming(1, { duration: 90 }),
+      withTiming(1, { duration: reduced ? 40 : 90 }),
       withDelay(
-        HOLD_MS,
-        withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) }, (finished) => {
+        hold,
+        withTiming(0, { duration: reduced ? 120 : 260, easing: Easing.in(Easing.quad) }, (finished) => {
           if (finished && onDone) runOnJS(onDone)();
         })
       )
     );
-    scale.value = withSequence(
-      withSpring(1, SPRING_BOUNCY),
-      withDelay(HOLD_MS, withTiming(0.92, { duration: 260 }))
-    );
+    scale.value = reduced
+      ? withSequence(withTiming(1, { duration: 40 }), withDelay(hold, withTiming(0.92, { duration: 120 })))
+      : withSequence(
+          withSpring(1, SPRING_BOUNCY),
+          withDelay(HOLD_MS, withTiming(0.92, { duration: 260 }))
+        );
   }, [event?.id]);
 
   const style = useAnimatedStyle(() => ({

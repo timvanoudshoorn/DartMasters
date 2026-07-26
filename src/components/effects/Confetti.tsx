@@ -8,6 +8,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { COLORS } from '../../theme/colors';
+import { isReducedMotionEnabled } from '../../theme/motionPreference';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PIECE_COUNT = 90;
@@ -39,8 +40,12 @@ interface PieceConfig {
 }
 
 export function Confetti({ active }: { active: boolean }) {
+  // Pure celebratory decoration — skip outright under reduced motion rather
+  // than fast-forwarding (there's no meaningful "end state" for tumbling
+  // confetti to snap to).
+  const reduced = isReducedMotionEnabled();
   const pieces = useMemo<PieceConfig[]>(() => {
-    if (!active) return [];
+    if (!active || reduced) return [];
     return Array.from({ length: PIECE_COUNT }, (_, i) => {
       // First wave lands dense and fast, second wave drizzles in behind it.
       const secondWave = i > PIECE_COUNT * 0.6;
@@ -60,9 +65,9 @@ export function Confetti({ active }: { active: boolean }) {
         isCircle: Math.random() > 0.75,
       };
     });
-  }, [active]);
+  }, [active, reduced]);
 
-  if (!active) return null;
+  if (!active || reduced) return null;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">

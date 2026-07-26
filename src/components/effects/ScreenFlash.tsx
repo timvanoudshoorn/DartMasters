@@ -6,6 +6,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { isReducedMotionEnabled } from '../../theme/motionPreference';
 
 interface ScreenFlashProps {
   trigger: boolean;
@@ -16,7 +17,8 @@ export function ScreenFlash({ trigger, color }: ScreenFlashProps) {
   const opacity = useSharedValue(0);
 
   useEffect(() => {
-    if (trigger) {
+    // Pure decorative wash, no information conveyed — skip outright.
+    if (trigger && !isReducedMotionEnabled()) {
       opacity.value = withSequence(
         withTiming(0.45, { duration: 60 }),
         withTiming(0, { duration: 500 })

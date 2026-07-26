@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleProp, ViewStyle } from 'react-native';
+import { isReducedMotionEnabled } from '../../theme/motionPreference';
 
 interface MountRevealProps {
   children: React.ReactNode;
@@ -26,18 +27,25 @@ export function MountReveal({
   style,
 }: MountRevealProps) {
   const progress = useRef(new Animated.Value(0)).current;
+  // Read fresh at mount time (no subscription exists for this flag) — a
+  // reduced-motion user gets a near-instant fade with no stagger delay and
+  // no rise, rather than the full choreographed entrance.
+  const reduced = isReducedMotionEnabled();
+  const effectiveDelay = reduced ? 0 : delay;
+  const effectiveDuration = reduced ? Math.min(duration, 120) : duration;
+  const effectiveDistance = reduced ? 0 : distance;
 
   useEffect(() => {
     const anim = Animated.timing(progress, {
       toValue: 1,
-      duration,
-      delay,
+      duration: effectiveDuration,
+      delay: effectiveDelay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
     anim.start();
     return () => anim.stop();
-  }, [progress, duration, delay]);
+  }, [progress, effectiveDuration, effectiveDelay]);
 
   return (
     <Animated.View
@@ -49,7 +57,7 @@ export function MountReveal({
             {
               translateY: progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [distance, 0],
+                outputRange: [effectiveDistance, 0],
               }),
             },
           ],
