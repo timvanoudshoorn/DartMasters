@@ -37,6 +37,7 @@ export type RootStackParamList = {
   GameSummary: { matchId: string };
   StatsHome: undefined;
   MatchDetail: { matchId: string };
+  StatsTrends: undefined;
   PlayersList: undefined;
   PlayerProfile: { playerId: string };
   PlayerEdit: { playerId?: string };
