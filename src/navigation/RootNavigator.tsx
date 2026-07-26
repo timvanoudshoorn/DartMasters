@@ -15,6 +15,7 @@ import { MatchDetailScreen } from '../screens/MatchDetailScreen';
 import { PlayersListScreen } from '../screens/PlayersListScreen';
 import { PlayerProfileScreen } from '../screens/PlayerProfileScreen';
 import { PlayerEditScreen } from '../screens/PlayerEditScreen';
+import { HeadToHeadScreen } from '../screens/HeadToHeadScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { CameraScoringScreen } from '../screens/CameraScoringScreen';
 import { RootStackParamList } from './types';
@@ -62,6 +63,7 @@ export function RootNavigator() {
         <Stack.Screen name="PlayersList" component={PlayersListScreen} />
         <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} />
         <Stack.Screen name="PlayerEdit" component={PlayerEditScreen} />
+        <Stack.Screen name="HeadToHead" component={HeadToHeadScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="CameraScoring" component={CameraScoringScreen} />
       </Stack.Navigator>

@@ -17,6 +17,7 @@ export type PlayersStackParamList = {
   PlayerProfile: { playerId: string };
   PlayerEdit: { playerId?: string };
   Settings: undefined;
+  HeadToHead: undefined;
 };
 
 export type StatsStackParamList = {
@@ -41,4 +42,5 @@ export type RootStackParamList = {
   PlayerEdit: { playerId?: string };
   Settings: undefined;
   CameraScoring: { onConfirm: (darts: Dart[]) => void };
+  HeadToHead: undefined;
 };
