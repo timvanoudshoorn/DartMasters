@@ -43,7 +43,6 @@ export function EventStinger({ event, onDone }: EventStingerProps) {
     // fast-forward rather than skip — shorter hold, no bouncy overshoot.
     const reduced = isReducedMotionEnabled();
     const hold = reduced ? 350 : HOLD_MS;
-    scale.value = reduced ? 1 : 2.4;
     opacity.value = withSequence(
       withTiming(1, { duration: reduced ? 40 : 90 }),
       withDelay(
