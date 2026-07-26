@@ -8,7 +8,7 @@ import { Icon } from '../components/icons/Icon';
 import { Screen } from '../components/Screen';
 import { exportAllData, exportAllDataAsJson, importAllData } from '../logic/backup';
 import { SettingsStorage } from '../storage/storage';
-import { colors, fonts, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { COLORS } from '../theme/colors';
 
 // Days since the last backup after which the timestamp gets a soft visual
@@ -190,11 +190,8 @@ export function BackupRestoreScreen() {
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
+    ...typography.overline,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
     marginBottom: spacing.md,
   },
   bodyText: {

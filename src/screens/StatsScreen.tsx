@@ -14,7 +14,7 @@ import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
 import { getGameModeInfo } from '../data/gameModes';
 import { RootStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
-import { colors, fonts, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { MatchRecord, Player } from '../types';
 import { computeHomeOverview } from '../utils/overview';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
@@ -166,11 +166,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   sectionTitle: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
+    ...typography.overline,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
     marginBottom: spacing.md,
   },
   trendsCard: {

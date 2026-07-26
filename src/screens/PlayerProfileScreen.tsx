@@ -26,7 +26,7 @@ import { aggregateCareerStats, CareerStats } from '../logic/stats';
 import { RootStackParamList } from '../navigation/types';
 import { GoalsStorage, PlayerGoals } from '../storage/goals';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
-import { colors, fonts, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { reducedMs, staggerDelay } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
@@ -433,11 +433,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
+    ...typography.overline,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
     marginBottom: spacing.md,
     marginTop: spacing.sm,
   },

@@ -18,7 +18,7 @@ import { createBracket, isTournamentComplete } from '../logic/tournament';
 import { RootStackParamList } from '../navigation/types';
 import { PlayerStorage } from '../storage/storage';
 import { TournamentStorage } from '../storage/tournament';
-import { colors, fonts, playerColor, radius, spacing } from '../theme';
+import { colors, fonts, playerColor, radius, spacing, typography } from '../theme';
 import { reducedMs } from '../theme/motion';
 import { GameConfig, GameType, InMode, OutMode, Player, Tournament } from '../types';
 import { generateId } from '../utils/id';
@@ -286,11 +286,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontFamily: fonts.bodySemibold,
-    fontSize: 13,
+    ...typography.overline,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
   },
   countBadge: {
     fontFamily: fonts.bodyExtraBold,

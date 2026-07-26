@@ -359,3 +359,47 @@ currently reports one pre-existing error unrelated to this change —
 not assignable to type 'IconName'` — confirmed via `git stash`/`tsc`/`git
 stash pop` that this error exists independent of my edits, in files I never
 touched. The three files this task changed compile clean on their own.
+
+## Round: Personal-best celebration — Stage 1 (Logic contract)
+
+Read `src/logic/personalBests.ts` in full. `computePersonalBests(matches,
+playerId)` already returns `PersonalBestRecord[]` for six categories
+(`highestCheckout`, `bestThreeDartAvg`, `most180sInMatch`, `bestLegDarts`,
+`bestVisit`, `longestWinStreak`), each already carrying `matchId`/`date` —
+no extension needed there.
+
+Added one new export, purely additive, no existing signature/behavior
+touched:
+
+```ts
+export function newPersonalBestsFromMatch(
+  matches: MatchRecord[],
+  playerId: string,
+  thisMatchId: string
+): PersonalBestRecord[]
+```
+
+Implementation: reruns `computePersonalBests` twice (once with the full
+history, once with `thisMatchId` filtered out) and diffs. A category is
+"newly set" only if `thisMatchId` currently holds that record's `matchId`
+in the full-history run AND the value strictly improved on the
+history-without-this-match run (or there was no prior qualifying record).
+`bestLegDarts` is the one lower-is-better category, handled via an explicit
+`LOWER_IS_BETTER` list rather than inferred. Ties resolve for free: since
+`computePersonalBests` only replaces a record on strict improvement, a
+match that merely ties the existing best never becomes the `matchId`
+holder, so it's excluded automatically — no extra tie-breaking logic
+needed. Zero changes to stat math, zero changes to `computePersonalBests`'s
+return shape — `PlayerProfileScreen.tsx`/`StatsTrendsScreen.tsx` call sites
+unaffected.
+
+Filled in the "Logic/Systems Agent — pure function contract" section of
+`docs/agent-comms/collab-pb-celebration.md` with the full signature,
+per-category human meanings (for badge copy), tie-handling explanation,
+and the judgment call made (thin diffing wrapper, no changes to the
+existing function).
+
+`npx tsc --noEmit` — clean.
+
+Files touched: `src/logic/personalBests.ts`,
+`docs/agent-comms/collab-pb-celebration.md`.

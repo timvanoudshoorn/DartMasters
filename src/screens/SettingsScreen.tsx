@@ -17,7 +17,7 @@ import { setHapticsEnabled } from '../sound/haptics';
 import { setReducedMotionEnabled } from '../theme/motionPreference';
 import { RootStackParamList } from '../navigation/types';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
-import { colors, fonts, spacing } from '../theme';
+import { colors, fonts, spacing, typography } from '../theme';
 import { STAGGER_MS } from '../theme/motion';
 import { Player } from '../types';
 
@@ -177,11 +177,8 @@ export function SettingsScreen() {
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
+    ...typography.overline,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
     marginBottom: spacing.md,
   },
   emptyText: {

@@ -164,3 +164,68 @@ export function computePersonalBests(matches: MatchRecord[], playerId: string): 
     ),
   ];
 }
+
+/** Categories where a *lower* value is the better record (every other
+ * category is higher-is-better). Kept as an explicit list rather than
+ * inferring direction, since it's the one place that knowledge lives. */
+const LOWER_IS_BETTER: PersonalBestId[] = ['bestLegDarts'];
+
+/**
+ * Given a player's full match history (including the just-finished match)
+ * and that match's id, returns the subset of `computePersonalBests`
+ * records that were *newly set specifically by this match* — i.e. this
+ * match currently holds the record AND the record strictly improved on
+ * whatever the player's best was immediately before this match.
+ *
+ * Pure diffing wrapper: reruns `computePersonalBests` once with the full
+ * history and once with `thisMatchId` excluded, then compares. No stat
+ * math is reimplemented here.
+ *
+ * Ties are handled for free by `computePersonalBests`'s own tie-breaking
+ * (it only replaces a record on strict improvement, so of two matches
+ * with an equal value, the earlier one — by input array order — keeps
+ * the `matchId`). That means: (a) the "without" computation still credits
+ * the earlier match as the record holder, so its value matches the "with"
+ * computation's value and no false-positive "new best" is reported for a
+ * merely-tying match; (b) a match can only appear in this function's
+ * result if it is the one `computePersonalBests` currently attributes the
+ * record to, which requires it to have been strictly better than every
+ * match before it in the input order.
+ *
+ * Returns full `PersonalBestRecord`s (not just ids) so callers/UI can read
+ * `label`/`formatted`/`value` directly without a second lookup.
+ */
+export function newPersonalBestsFromMatch(
+  matches: MatchRecord[],
+  playerId: string,
+  thisMatchId: string
+): PersonalBestRecord[] {
+  const withMatch = computePersonalBests(matches, playerId);
+  const withoutMatch = computePersonalBests(
+    matches.filter((m) => m.id !== thisMatchId),
+    playerId
+  );
+
+  const newlySet: PersonalBestRecord[] = [];
+
+  for (const withRec of withMatch) {
+    // This match must currently be the one holding the record.
+    if (withRec.matchId !== thisMatchId || withRec.value === null) continue;
+
+    const beforeRec = withoutMatch.find((r) => r.id === withRec.id) ?? null;
+
+    if (beforeRec === null || beforeRec.value === null) {
+      // First-ever qualifying record in this category.
+      newlySet.push(withRec);
+      continue;
+    }
+
+    const improved = LOWER_IS_BETTER.includes(withRec.id)
+      ? withRec.value < beforeRec.value
+      : withRec.value > beforeRec.value;
+
+    if (improved) newlySet.push(withRec);
+  }
+
+  return newlySet;
+}
