@@ -29,6 +29,8 @@ import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { PendingTournamentMatchStorage, TournamentStorage } from '../storage/tournament';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS, FONT } from '../theme/colors';
+import { reducedMs } from '../theme/motion';
+import { isReducedMotionEnabled } from '../theme/motionPreference';
 import { MatchRecord, Player, Tournament, TournamentMatchContext } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
 
@@ -112,8 +114,8 @@ export function GameSummaryScreen() {
   // a success roll as the name slams in.
   useEffect(() => {
     if (!match?.winnerId) return;
-    const t1 = setTimeout(() => haptic.heavy(), REVEAL.trophy + 120);
-    const t2 = setTimeout(() => haptic.success(), REVEAL.name + 100);
+    const t1 = setTimeout(() => haptic.heavy(), reducedMs(REVEAL.trophy) + 120);
+    const t2 = setTimeout(() => haptic.success(), reducedMs(REVEAL.name) + 100);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -121,6 +123,17 @@ export function GameSummaryScreen() {
   }, [match?.winnerId]);
 
   if (!match) return <Screen />;
+
+  // Collapse the staged reveal choreography to near-instant under reduced
+  // motion — read once per render, no subscription exists for this flag.
+  const R = {
+    overline: reducedMs(REVEAL.overline),
+    trophy: reducedMs(REVEAL.trophy),
+    name: reducedMs(REVEAL.name),
+    stats: reducedMs(REVEAL.stats),
+    statStep: reducedMs(REVEAL.statStep),
+    actions: reducedMs(REVEAL.actions),
+  };
 
   const modeInfo = getGameModeInfo(match.gameType);
   const isX01 = ['501', '301', '201', 'practice170'].includes(match.gameType);
@@ -137,18 +150,18 @@ export function GameSummaryScreen() {
       <Confetti active={!!winner} />
 
       <View style={styles.header}>
-        <Animated.Text entering={FadeIn.delay(REVEAL.overline).duration(400)} style={styles.modeLabel}>
+        <Animated.Text entering={FadeIn.delay(R.overline).duration(reducedMs(400) || 1)} style={styles.modeLabel}>
           {modeInfo.title}
         </Animated.Text>
 
         {winner ? (
           <>
             <Animated.View
-              entering={ZoomIn.delay(REVEAL.trophy).springify().damping(11).stiffness(180)}
+              entering={ZoomIn.delay(R.trophy).springify().damping(11).stiffness(180)}
               style={styles.heroWrap}
             >
-              <PulseRing delay={REVEAL.trophy + 200} size={148} />
-              <PulseRing delay={REVEAL.trophy + 550} size={148} />
+              <PulseRing delay={R.trophy + reducedMs(200)} size={148} />
+              <PulseRing delay={R.trophy + reducedMs(550)} size={148} />
               <PlayerAvatar
                 name={winner.name}
                 color={winner.color}
@@ -158,14 +171,14 @@ export function GameSummaryScreen() {
                 active
               />
               <Animated.View
-                entering={ZoomIn.delay(REVEAL.trophy + 220).springify().damping(9).stiffness(220)}
+                entering={ZoomIn.delay(R.trophy + reducedMs(220)).springify().damping(9).stiffness(220)}
                 style={styles.trophyBadge}
               >
                 <Icon name="trophy" size={22} color={COLORS.text} />
               </Animated.View>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(REVEAL.name).springify().damping(14)} style={styles.nameBlock}>
+            <Animated.View entering={FadeInDown.delay(R.name).springify().damping(14)} style={styles.nameBlock}>
               <Text style={styles.championLabel}>CHAMPION</Text>
               <Text style={styles.winnerName}>{winner.name.toUpperCase()}</Text>
               <View style={styles.nameRule} />
@@ -174,7 +187,7 @@ export function GameSummaryScreen() {
         ) : (
           // No winner means a genuine tie (Shanghai/Bob's/Halve It can end
           // level) — name the result instead of a vague "match complete".
-          <Animated.View entering={FadeInDown.delay(REVEAL.trophy).duration(400)} style={styles.nameBlock}>
+          <Animated.View entering={FadeInDown.delay(R.trophy).duration(reducedMs(400) || 1)} style={styles.nameBlock}>
             <Text style={styles.championLabel}>TIED RESULT</Text>
             <Text style={styles.winnerName}>DRAW</Text>
             <View style={styles.nameRule} />
@@ -187,7 +200,7 @@ export function GameSummaryScreen() {
         const r = match.results[id];
         if (!r) return null;
         const isWinner = id === match.winnerId;
-        const delay = REVEAL.stats + cardIndex * REVEAL.statStep;
+        const delay = R.stats + cardIndex * R.statStep;
         return (
           <Animated.View key={id} entering={FadeInDown.delay(delay).springify().damping(16)}>
             <Card
@@ -252,7 +265,7 @@ export function GameSummaryScreen() {
           A tournament matchup swaps both for a single "back to bracket" action
           instead, since "play again" and "back to menu" don't make sense
           mid-tournament. */}
-      <Animated.View entering={FadeInUp.delay(REVEAL.actions).springify().damping(16)}>
+      <Animated.View entering={FadeInUp.delay(R.actions).springify().damping(16)}>
         {tournamentResult ? (
           <Button
             label={tournamentResult.tournament.status === 'completed' ? 'VIEW CHAMPION' : 'BACK TO BRACKET'}
@@ -308,8 +321,8 @@ function RevealStat({
       ) : (
         <CountUp
           value={value}
-          delay={delay + 150}
-          duration={650}
+          delay={delay + reducedMs(150)}
+          duration={reducedMs(650) || 150}
           format={format}
           style={[styles.statValue, hot ? { color: COLORS.accentHot } : null]}
         />
@@ -322,8 +335,10 @@ function RevealStat({
 /** Hairline ring that expands and fades behind the winner's avatar. */
 function PulseRing({ delay, size }: { delay: number; size: number }) {
   const progress = useSharedValue(0);
+  const reduced = isReducedMotionEnabled();
 
   useEffect(() => {
+    if (reduced) return; // pure decoration, no information conveyed
     progress.value = withDelay(
       delay,
       withRepeat(
@@ -337,6 +352,8 @@ function PulseRing({ delay, size }: { delay: number; size: number }) {
     opacity: (1 - progress.value) * 0.5,
     transform: [{ scale: 0.8 + progress.value * 0.7 }],
   }));
+
+  if (reduced) return null;
 
   return (
     <Animated.View
