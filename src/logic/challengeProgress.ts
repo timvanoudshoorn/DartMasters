@@ -20,16 +20,21 @@ function isSameDay(ts: number, ref: Date): boolean {
   return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
 }
 
-export async function computeDailyChallengeReport(): Promise<DailyChallengeReport> {
+export async function computeDailyChallengeReport(
+  selectedPlayerId?: string
+): Promise<DailyChallengeReport> {
   const [players, matches, bullOffs] = await Promise.all([
     PlayerStorage.getAll(),
     MatchStorage.getAll(),
     BullOffStorage.getAll(),
   ]);
 
-  const primaryPlayer = players.length
+  const oldestPlayer = players.length
     ? players.slice().sort((a, b) => a.createdAt - b.createdAt)[0]
     : null;
+  const primaryPlayer = selectedPlayerId
+    ? players.find((p) => p.id === selectedPlayerId) ?? oldestPlayer
+    : oldestPlayer;
   const today = new Date();
   const { solo, multiplayer } = getDailyChallenges(today);
 
