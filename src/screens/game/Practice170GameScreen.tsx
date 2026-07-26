@@ -13,6 +13,7 @@ import { AnimatedScore } from '../../components/AnimatedScore';
 import { CheckoutBanner } from '../../components/CheckoutBanner';
 import { DartPad } from '../../components/DartPad';
 import { DartSlots } from '../../components/DartSlots';
+import { GameHud } from '../../components/GameHud';
 import { Icon } from '../../components/icons/Icon';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { PressableScale } from '../../components/primitives/PressableScale';
@@ -269,18 +270,15 @@ export function Practice170GameScreen({ config }: Props) {
   return (
     <Screen>
       <ScreenFlash trigger={bustFlash} color={colors.neonRed} />
-      <View style={styles.topBar}>
-        <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-          <Icon name="back" size={20} color={colors.textPrimary} />
-        </PressableScale>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>170 PRACTICE</Text>
-          <Text style={styles.topBarSubtitle}>Round {state.attempt}</Text>
-        </View>
-        <PressableScale onPress={undo} hitSlop={10} disabled={history.current.length === 0} haptic="tick" scaleTo={0.88} style={styles.exitBtn}>
-          <Icon name="undo" size={20} color={history.current.length === 0 ? colors.textMuted : colors.textPrimary} />
-        </PressableScale>
-      </View>
+      <GameHud
+        onExit={() => navigation.goBack()}
+        centerContent={
+          <View style={{ alignItems: 'center' }}>
+            <Text style={styles.title}>170 PRACTICE</Text>
+            <Text style={styles.topBarSubtitle}>Round {state.attempt}</Text>
+          </View>
+        }
+      />
 
       <View style={styles.spotlight}>
         <View style={styles.playerHeader}>
@@ -307,6 +305,17 @@ export function Practice170GameScreen({ config }: Props) {
       </View>
 
       <View style={styles.inputCard}>
+        <PressableScale
+          onPress={undo}
+          disabled={history.current.length === 0}
+          haptic="tick"
+          scaleTo={0.88}
+          hitSlop={8}
+          style={[styles.undoBtn, history.current.length === 0 && styles.disabled]}
+        >
+          <Icon name="undo" size={16} color={colors.textMuted} />
+        </PressableScale>
+
         {bustFlash ? (
           <Text style={styles.bustText}>BUST — TRY AGAIN</Text>
         ) : (
@@ -347,20 +356,6 @@ function rotate<T>(arr: T[], startIndex: number): T[] {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  exitBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   title: { fontFamily: fonts.bodyExtraBold, fontSize: 12, color: colors.textSecondary, letterSpacing: 1.5 },
   topBarSubtitle: {
     fontFamily: fonts.bodyMedium,
@@ -393,6 +388,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     padding: spacing.md,
+    position: 'relative',
+  },
+  undoBtn: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    zIndex: 1,
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.bgCardAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabled: {
+    opacity: 0.35,
   },
   playerHeader: {
     flexDirection: 'row',
