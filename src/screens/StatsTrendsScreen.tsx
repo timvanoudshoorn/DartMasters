@@ -1,14 +1,13 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TrendLineChart } from '../components/charts/TrendLineChart';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
-import { PlayerAvatar } from '../components/PlayerAvatar';
-import { PressableScale } from '../components/primitives/PressableScale';
+import { PlayerFilterChips } from '../components/PlayerFilterChips';
 import { Screen } from '../components/Screen';
 import { StatPill } from '../components/StatPill';
 import { computePlayerTrend } from '../logic/trends';
@@ -73,29 +72,7 @@ export function StatsTrendsScreen() {
         <EmptyState icon="stats" title="No players yet" subtitle="Add a player to track their trends" />
       ) : (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.pickerRow}
-          >
-            {players.map((p) => {
-              const active = p.id === selectedId;
-              return (
-                <PressableScale
-                  key={p.id}
-                  onPress={() => setSelectedId(p.id)}
-                  scaleTo={0.94}
-                  haptic="tick"
-                  style={[styles.pickerChip, active && styles.pickerChipActive]}
-                >
-                  <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={28} />
-                  <Text style={[styles.pickerName, active && styles.pickerNameActive]} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                </PressableScale>
-              );
-            })}
-          </ScrollView>
+          <PlayerFilterChips players={players} selectedId={selectedId} onSelect={setSelectedId} />
 
           {!trend ? (
             <EmptyState
@@ -148,35 +125,6 @@ function formatDate(ts: number) {
 }
 
 const styles = StyleSheet.create({
-  pickerRow: {
-    gap: spacing.sm,
-    paddingBottom: spacing.lg,
-  },
-  pickerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: COLORS.card,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderTopColor: COLORS.edge,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm,
-    maxWidth: 160,
-  },
-  pickerChipActive: {
-    borderColor: COLORS.accentBorder,
-    backgroundColor: COLORS.accentDim,
-  },
-  pickerName: {
-    fontFamily: fonts.bodySemibold,
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  pickerNameActive: {
-    color: colors.textPrimary,
-  },
   chartCard: {
     backgroundColor: COLORS.card,
     borderRadius: radius.lg,
