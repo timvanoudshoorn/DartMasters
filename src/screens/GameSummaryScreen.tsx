@@ -188,7 +188,7 @@ export function GameSummaryScreen() {
               {!isX01 && !isCricket && (
                 <View style={styles.statsGrid}>
                   <RevealStat label="Darts" value={r.dartsThrown} delay={delay} />
-                  {(match.gameType === 'shanghai' || match.gameType === 'bobs27') && (
+                  {(match.gameType === 'shanghai' || match.gameType === 'bobs27' || match.gameType === 'halveIt') && (
                     <RevealStat label="Score" value={r.totalScored} delay={delay} hot />
                   )}
                 </View>

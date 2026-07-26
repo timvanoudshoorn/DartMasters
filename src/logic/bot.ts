@@ -1,6 +1,7 @@
 import { getCheckoutSuggestion } from '../data/checkoutTable';
 import { AtcThrow } from './aroundTheClock';
-import { BotDifficulty, CricketMarks, Dart, dartValue, KillerPlayerState, Multiplier, OutMode } from '../types';
+import { HalveItDart } from './halveIt';
+import { BotDifficulty, CricketMarks, Dart, dartValue, HalveItTarget, KillerPlayerState, Multiplier, OutMode } from '../types';
 
 export interface BotProfile {
   label: string;
@@ -160,4 +161,21 @@ export function decideShanghaiDart(profile: BotProfile): Multiplier | null {
   if (r < profile.skill * 0.4) return 3;
   if (r < profile.skill * 0.4 + 0.3) return 2;
   return 1;
+}
+
+export function decideHalveItDart(target: HalveItTarget, profile: BotProfile): HalveItDart | null {
+  const hitChance = Math.min(0.9, 0.35 + profile.skill * 0.5);
+  if (!chance(hitChance)) return null;
+  switch (target.kind) {
+    case 'number':
+      return { segment: target.segment!, multiplier: chance(profile.skill * 0.4) ? 3 : chance(profile.skill * 0.5) ? 2 : 1 };
+    case 'bull':
+      return { segment: 25, multiplier: chance(profile.doubleAccuracy) ? 2 : 1 };
+    case 'anyDouble':
+      return { segment: Math.floor(Math.random() * 20) + 1, multiplier: 2 };
+    case 'anyTriple':
+      return { segment: Math.floor(Math.random() * 20) + 1, multiplier: 3 };
+    default:
+      return null;
+  }
 }
