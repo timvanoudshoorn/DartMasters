@@ -86,15 +86,28 @@ and prioritized each cycle by this session.
   no `scheduleTimeout` needed since neither has a flash/delay before the
   reset, unlike X01's checkout-flash timing). `npx tsc --noEmit` clean.
 
+- **Haptics accessibility toggle — done this session.** No app-wide way
+  to reduce haptics existed, only sound had a Settings toggle. *Fix:*
+  `AppSettings.hapticsEnabled` (additive, default `true`); `haptics.ts`
+  gained a module-level flag + `setHapticsEnabled()` gating every
+  `haptic.*` call at its one choke point (every game screen and
+  `PressableScale` already route through `haptic`/`hapticPattern`, so no
+  per-call-site changes needed); `App.tsx` initializes it from storage on
+  launch alongside `setSoundEnabled`; `SettingsScreen` gained a "Haptics"
+  `SwitchRow` next to "Sound effects". `backup.ts` round-trips
+  `AppSettings` generically, so restore needed no changes. `npx tsc
+  --noEmit` clean.
+
 ### Next Up
 
 - Self-directed roadmap candidates for next cycle, in rough priority
-  order: (a) a lightweight Settings toggle for reduced haptics/motion
-  (accessibility — currently no such escape hatch exists anywhere in the
-  app), (b) Stats/Trends screen polish pass, (c) sound asset coverage for
+  order: (a) Stats/Trends screen polish pass, (b) sound asset coverage for
   `miss`/`buttonTap` (currently permanently silent by design — confirm
   this is still the desired long-term state or worth an actual asset),
-  (d) general sweep of `src/screens/` flow screens (Achievements,
+  (c) general sweep of `src/screens/` flow screens (Achievements,
   HeadToHead, Search, BackupRestore, Settings) against the design system
   now that game screens have had two full passes — flow screens were
-  audited but not as deeply iterated on.
+  audited but not as deeply iterated on, (d) a "Reduce motion" companion
+  toggle for Reanimated `entering=`/stinger animations, following the same
+  pattern established by sound/haptics, for users who want the tactile
+  feedback but not the motion.
