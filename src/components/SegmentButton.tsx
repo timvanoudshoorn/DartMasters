@@ -12,7 +12,6 @@ interface SegmentButtonProps {
   variant?: 'default' | 'accent' | 'danger' | 'muted';
   size?: 'sm' | 'md' | 'lg';
   style?: ViewStyle;
-  soundTrigger?: 'buttonTap' | 'miss';
   /**
    * Contact haptic override. Game screens pass 'none' for dart-input
    * buttons so their handler's weighted `hapticPattern.dartHit(...)` is
@@ -29,7 +28,6 @@ export function SegmentButton({
   variant = 'default',
   size = 'md',
   style,
-  soundTrigger = 'buttonTap',
   haptic,
 }: SegmentButtonProps) {
   return (
@@ -38,7 +36,6 @@ export function SegmentButton({
       disabled={disabled}
       scaleTo={PRESS_SCALE.key}
       haptic={haptic ?? (variant === 'accent' ? 'medium' : 'light')}
-      sound={soundTrigger}
       style={[disabled && styles.disabled, variant === 'accent' && shadow.key, style]}
     >
       <View style={[styles.base, sizeMap[size], variantMap[variant]]}>
