@@ -10,6 +10,7 @@ import { Icon } from '../components/icons/Icon';
 import { PlayerFilterChips } from '../components/PlayerFilterChips';
 import { Screen } from '../components/Screen';
 import { StatPill } from '../components/StatPill';
+import { computePersonalBests } from '../logic/personalBests';
 import { computePlayerTrend } from '../logic/trends';
 import { RootStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
@@ -50,6 +51,11 @@ export function StatsTrendsScreen() {
     [playerMatches, selectedId]
   );
 
+  const personalBests = useMemo(
+    () => (selectedId ? computePersonalBests(matches, selectedId) : []),
+    [matches, selectedId]
+  );
+
   const chartData = useMemo(
     () =>
       trend?.points.map((p) => ({
@@ -73,6 +79,23 @@ export function StatsTrendsScreen() {
       ) : (
         <>
           <PlayerFilterChips players={players} selectedId={selectedId} onSelect={setSelectedId} />
+
+          {personalBests.some((pb) => pb.value !== null) && (
+            <>
+              <Text style={styles.recordsTitle}>RECORDS</Text>
+              <View style={styles.recordsGrid}>
+                {personalBests.map((pb, i) => (
+                  <Animated.View
+                    key={pb.id}
+                    entering={FadeInDown.delay(i * STAGGER_MS).duration(240)}
+                    style={styles.recordsPillWrap}
+                  >
+                    <StatPill label={pb.label} value={pb.formatted} accent={pb.value !== null ? colors.primaryHot : undefined} />
+                  </Animated.View>
+                ))}
+              </View>
+            </>
+          )}
 
           {!trend ? (
             <EmptyState
@@ -125,6 +148,22 @@ function formatDate(ts: number) {
 }
 
 const styles = StyleSheet.create({
+  recordsTitle: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+  },
+  recordsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  recordsPillWrap: {
+    width: '31%',
+  },
   chartCard: {
     backgroundColor: COLORS.card,
     borderRadius: radius.lg,
