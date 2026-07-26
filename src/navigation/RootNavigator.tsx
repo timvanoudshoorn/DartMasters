@@ -16,6 +16,8 @@ import { PlayerProfileScreen } from '../screens/PlayerProfileScreen';
 import { PlayerEditScreen } from '../screens/PlayerEditScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { CameraScoringScreen } from '../screens/CameraScoringScreen';
+import { TournamentSetupScreen } from '../screens/TournamentSetupScreen';
+import { TournamentBracketScreen } from '../screens/TournamentBracketScreen';
 import { RootStackParamList } from './types';
 import { colors } from '../theme';
 
@@ -62,6 +64,8 @@ export function RootNavigator() {
         <Stack.Screen name="PlayerEdit" component={PlayerEditScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="CameraScoring" component={CameraScoringScreen} />
+        <Stack.Screen name="TournamentSetup" component={TournamentSetupScreen} />
+        <Stack.Screen name="TournamentBracket" component={TournamentBracketScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

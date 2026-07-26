@@ -8,19 +8,34 @@ import { KillerGameScreen } from './game/KillerGameScreen';
 import { ShanghaiGameScreen } from './game/ShanghaiGameScreen';
 import { Bobs27GameScreen } from './game/Bobs27GameScreen';
 import { ActiveMatchStorage } from '../storage/activeMatch';
-import { GameConfig } from '../types';
+import { PendingTournamentMatchStorage } from '../storage/tournament';
+import { GameConfig, TournamentMatchContext } from '../types';
 
-type Route = { params: { config: GameConfig } };
+type Route = { params: { config: GameConfig; tournamentContext?: TournamentMatchContext } };
 
 export function GameScreen() {
   const route = useRoute() as unknown as Route;
-  const { config } = route.params;
+  const { config, tournamentContext } = route.params;
 
   useEffect(() => {
     ActiveMatchStorage.set(config);
     return () => {
       ActiveMatchStorage.clear();
     };
+  }, []);
+
+  // Tournament matchups are just normal matches — the per-mode game screens
+  // (X01GameScreen, CricketGameScreen, ...) never learn a tournament is
+  // involved. Instead we drop a pointer here that GameSummaryScreen picks up
+  // once the match is decided, so it can report the result back into the
+  // bracket. Only one match plays at a time, so a stale pointer from a
+  // previous tournament match is always safe to clear on a normal match.
+  useEffect(() => {
+    if (tournamentContext) {
+      PendingTournamentMatchStorage.set(tournamentContext);
+    } else {
+      PendingTournamentMatchStorage.clear();
+    }
   }, []);
 
   switch (config.gameType) {
