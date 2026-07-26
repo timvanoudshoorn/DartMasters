@@ -13,16 +13,30 @@ import * as Haptics from 'expo-haptics';
 
 const safe = (p: Promise<unknown>) => p.catch(() => {});
 
+// Mirrors soundManager's setSoundEnabled pattern: a module-level flag, set
+// once at launch from AppSettings and again whenever the user flips the
+// Settings toggle. Defaults on so haptics work before settings load.
+let hapticsEnabled = true;
+
+export function setHapticsEnabled(enabled: boolean) {
+  hapticsEnabled = enabled;
+}
+
+const gated = (fn: () => Promise<unknown>) => () => {
+  if (!hapticsEnabled) return Promise.resolve();
+  return safe(fn());
+};
+
 export const haptic = {
-  tick: () => safe(Haptics.selectionAsync()),
-  light: () => safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
-  medium: () => safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)),
-  heavy: () => safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)),
-  rigid: () => safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid)),
-  soft: () => safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft)),
-  success: () => safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
-  warning: () => safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)),
-  error: () => safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)),
+  tick: gated(() => Haptics.selectionAsync()),
+  light: gated(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
+  medium: gated(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)),
+  heavy: gated(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)),
+  rigid: gated(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid)),
+  soft: gated(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft)),
+  success: gated(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
+  warning: gated(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)),
+  error: gated(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)),
 };
 
 type Step = { at: number; play: () => void };

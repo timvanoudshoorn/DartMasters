@@ -13,6 +13,7 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { Screen } from '../components/Screen';
 import { SwitchRow } from '../components/SwitchRow';
 import { setSoundEnabled } from '../sound/soundManager';
+import { setHapticsEnabled } from '../sound/haptics';
 import { RootStackParamList } from '../navigation/types';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, spacing } from '../theme';
@@ -47,6 +48,7 @@ export function SettingsScreen() {
       console.error('[SettingsScreen] Failed to save settings:', err);
     });
     if (patch.soundEnabled !== undefined) setSoundEnabled(patch.soundEnabled);
+    if (patch.hapticsEnabled !== undefined) setHapticsEnabled(patch.hapticsEnabled);
   };
 
   const removePlayer = (id: string, name: string) => {
@@ -112,6 +114,11 @@ export function SettingsScreen() {
           label="Sound effects"
           value={settings.soundEnabled}
           onChange={(v) => update({ soundEnabled: v })}
+        />
+        <SwitchRow
+          label="Haptics"
+          value={settings.hapticsEnabled}
+          onChange={(v) => update({ hapticsEnabled: v })}
         />
       </Card>
       </Animated.View>

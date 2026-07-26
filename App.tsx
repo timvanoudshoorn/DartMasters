@@ -18,6 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { preloadSounds, setSoundEnabled } from './src/sound/soundManager';
+import { setHapticsEnabled } from './src/sound/haptics';
 import { SettingsStorage } from './src/storage/storage';
 import { colors } from './src/theme';
 import { preloadAnnouncerSounds } from './src/utils/dartAnnouncer';
@@ -40,7 +41,10 @@ export default function App() {
       playsInSilentModeIOS: true,
       allowsRecordingIOS: false,
     });
-    SettingsStorage.get().then((s) => setSoundEnabled(s.soundEnabled));
+    SettingsStorage.get().then((s) => {
+      setSoundEnabled(s.soundEnabled);
+      setHapticsEnabled(s.hapticsEnabled);
+    });
     preloadSounds();
     preloadAnnouncerSounds();
   }, []);
