@@ -2,11 +2,10 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
-import { Icon } from '../../components/icons/Icon';
+import { GameHud } from '../../components/GameHud';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
-import { PressableScale } from '../../components/primitives/PressableScale';
 import { Screen } from '../../components/Screen';
 import { SegmentButton } from '../../components/SegmentButton';
 import { applyBobs27Round, BOBS27_ROUNDS, createBobs27Players, getBobs27Leader } from '../../logic/bobs27';
@@ -144,27 +143,15 @@ export function Bobs27GameScreen({ config }: Props) {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <PressableScale onPress={() => navigation.goBack()} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
-          <Icon name="close" size={16} color={colors.textMuted} />
-        </PressableScale>
-        <View style={styles.titlePill}>
-          <Text style={styles.title}>BOB'S 27</Text>
-        </View>
-        <View style={styles.dartsIndicator}>
-          {[0, 1, 2].map((i) =>
-            i < dartsThisTurn ? (
-              <Animated.View
-                key={i}
-                entering={ZoomIn.springify().damping(11).stiffness(240)}
-                style={[styles.dartDot, styles.dartDotFilled]}
-              />
-            ) : (
-              <View key={i} style={styles.dartDot} />
-            )
-          )}
-        </View>
-      </View>
+      <GameHud
+        onExit={() => navigation.goBack()}
+        centerContent={
+          <View style={styles.titlePill}>
+            <Text style={styles.title}>BOB'S 27</Text>
+          </View>
+        }
+        dartsThisTurn={dartsThisTurn}
+      />
 
       <View style={styles.scoresRow}>
         {bobsPlayers.map((bp, i) => {
@@ -205,20 +192,6 @@ export function Bobs27GameScreen({ config }: Props) {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  exitBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   titlePill: {
     backgroundColor: colors.bgCardAlt,
     borderRadius: radius.full,
@@ -228,16 +201,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   title: { fontFamily: fonts.bodyExtraBold, fontSize: 12, color: colors.textSecondary, letterSpacing: 1 },
-  dartsIndicator: { flexDirection: 'row', gap: 6 },
-  dartDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.bgCardAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dartDotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
   scoresRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
