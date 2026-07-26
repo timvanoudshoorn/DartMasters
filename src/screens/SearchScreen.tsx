@@ -15,7 +15,7 @@ import { RootStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { COLORS } from '../theme/colors';
-import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
+import { PRESS_SCALE, staggerDelay } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 
 export function SearchScreen() {
@@ -43,9 +43,10 @@ export function SearchScreen() {
   const results = useMemo(() => searchAll(query, players, matches), [query, players, matches]);
   const hasQuery = query.trim().length > 0;
   const hasResults = results.players.length > 0 || results.matches.length > 0;
+  const suggestedPlayers = useMemo(() => players.slice(0, 5), [players]);
 
   return (
-    <Screen scroll={hasQuery && hasResults}>
+    <Screen scroll={(hasQuery && hasResults) || (!hasQuery && suggestedPlayers.length > 0)}>
       <Header title="Search" onBack={() => navigation.goBack()} />
 
       <View style={styles.searchBar}>
@@ -69,11 +70,36 @@ export function SearchScreen() {
       </View>
 
       {!hasQuery ? (
-        <EmptyState
-          icon="search"
-          title="Search DartMasters"
-          subtitle="Find a player by name, or a match by mode or opponent"
-        />
+        <>
+          <EmptyState
+            icon="search"
+            title="Search DartMasters"
+            subtitle="Find a player by name, or a match by mode or opponent"
+            fill={suggestedPlayers.length === 0}
+          />
+          {suggestedPlayers.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>PLAYERS</Text>
+              {suggestedPlayers.map((p, i) => (
+                <Animated.View key={p.id} entering={FadeInDown.delay(staggerDelay(i)).duration(240)}>
+                  <PressableScale
+                    scaleTo={PRESS_SCALE.row}
+                    haptic="light"
+                    onPress={() => navigation.navigate('PlayerProfile', { playerId: p.id })}
+                    style={styles.row}
+                  >
+                    <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={44} />
+                    <View style={{ flex: 1, marginLeft: spacing.md }}>
+                      <Text style={styles.name}>{p.name}</Text>
+                      <Text style={styles.sub}>Player</Text>
+                    </View>
+                    <Icon name="chevronRight" size={18} color={colors.textFaint} />
+                  </PressableScale>
+                </Animated.View>
+              ))}
+            </>
+          )}
+        </>
       ) : !hasResults ? (
         <EmptyState icon="inbox" title="No results" subtitle={`Nothing matches "${query.trim()}"`} />
       ) : (
@@ -84,7 +110,7 @@ export function SearchScreen() {
               {results.players.map((r, i) => (
                 <Animated.View
                   key={r.player.id}
-                  entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+                  entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(240)}
                 >
                   <PressableScale
                     scaleTo={PRESS_SCALE.row}
@@ -120,7 +146,7 @@ export function SearchScreen() {
                 return (
                   <Animated.View
                     key={r.match.id}
-                    entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+                    entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(240)}
                   >
                     <PressableScale
                       scaleTo={PRESS_SCALE.row}
