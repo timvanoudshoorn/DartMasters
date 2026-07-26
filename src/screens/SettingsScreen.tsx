@@ -18,7 +18,7 @@ import { setReducedMotionEnabled } from '../theme/motionPreference';
 import { RootStackParamList } from '../navigation/types';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, spacing, typography } from '../theme';
-import { STAGGER_MS } from '../theme/motion';
+import { reducedMs, STAGGER_MS } from '../theme/motion';
 import { Player } from '../types';
 
 export function SettingsScreen() {
@@ -130,7 +130,7 @@ export function SettingsScreen() {
       </Card>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(STAGGER_MS).duration(260)}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(STAGGER_MS)).duration(260)}>
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={styles.sectionTitle}>MANAGE PLAYERS</Text>
         {players.length === 0 ? (
@@ -149,7 +149,7 @@ export function SettingsScreen() {
       </Card>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(260)}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(STAGGER_MS * 2)).duration(260)}>
       <Card style={{ marginBottom: spacing.xl }}>
         <Text style={styles.sectionTitle}>DATA</Text>
         <PressableScale
