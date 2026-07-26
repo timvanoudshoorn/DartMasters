@@ -259,3 +259,103 @@ Committed as `d9533d4` — "Logic Agent: fix announcer silence — consolidate
 audio-mode ownership, batch preload".
 
 `npx tsc --noEmit` — clean, no output, confirmed after all changes above.
+
+## Round: "Rematch" — one-tap replay with same players & settings (Roadmap proposal #1)
+
+### Param shape added
+
+`src/navigation/types.ts` gains an exported type:
+
+```ts
+export type RematchConfig = {
+  playerIds: string[];
+  guestPlayers?: GameConfig['guestPlayers'];
+  legsToWin: number;
+  setsToWin: number;
+  outMode: OutMode;
+  inMode: InMode;
+};
+```
+
+`GameSetup` in both `PlayStackParamList` and `RootStackParamList` (the two
+places it's defined, per the task brief) becomes
+`{ gameType: GameType; rematch?: RematchConfig }` — purely additive/optional,
+no existing caller of `navigation.navigate('GameSetup', { gameType })` needed
+changes.
+
+### What GameSummaryScreen passes, and what's approximated
+
+`buildRematchConfig(match: MatchRecord): RematchConfig` (new, in
+`GameSummaryScreen.tsx`) reconstructs the config from the finished match:
+
+- `playerIds`, `legsToWin`, `setsToWin` — copied straight off `MatchRecord`,
+  no approximation needed (all non-optional fields there).
+- `outMode`/`inMode` — `MatchRecord` stores these as optional (games other
+  than X01/Practice170 don't set them); falls back to `'double'`/`'straight'`
+  (the same defaults `GameSetupScreen` itself uses) when absent.
+- `guestPlayers` — rebuilt from `MatchRecord.guestNames`/`guestColors`/
+  `guestAvatars`/`botPlayerIds` (the identity maps `guestIdentityMaps()` in
+  `src/utils/guestMaps.ts` writes at match-finalize time from the *original*
+  `GameConfig.guestPlayers`). **One field is lost and approximated:**
+  `MatchRecord` never retained the original per-bot `botDifficulty` (only
+  `botPlayerIds`, a flat list of which ids were bots) — so a rebuilt bot
+  guest gets `botDifficulty: 'intermediate'` (the middle of the five-step
+  `BOT_DIFFICULTIES` ladder) regardless of what difficulty was actually
+  played at. This is a real approximation, not a bug: rematch is a prefill,
+  and difficulty is still a one-tap change on the setup screen if the
+  player wants their original difficulty back.
+
+### GameSetupScreen prefill behavior
+
+`GameSetupScreen.tsx` reads `route.params.rematch` and, once on mount:
+- Skips loading `SettingsStorage` defaults for legs/sets/out/in-mode and
+  uses the rematch's values instead (still respects the existing
+  `aroundTheClock` special-case of forcing `legsToWin: 1`).
+- Once the saved-players list finishes loading (`playersLoaded`, a new
+  state flag — needed because the existing per-focus `PlayerStorage.getAll()`
+  fetch is async and the prefill has to know the difference between "not
+  loaded yet" and "genuinely zero saved players"), rebuilds `guests` from
+  `rematch.guestPlayers` and sets `selectedIds` from `rematch.playerIds`,
+  **filtering out any id that's neither a still-known saved player nor a
+  guest/bot id carried in the rematch config** — handles the edge case of a
+  real player being deleted from the roster between the original match and
+  the rematch tap, so a dangling id can't get silently selected with no
+  visible chip. Guarded by a `useRef` so this only ever applies once; every
+  field remains normal editable state afterward — no locked/"rematch mode".
+- Existing invariants preserved untouched: `canStart` (min-players +
+  F21's "at least one human" check) still recomputes from whatever
+  `selectedIds`/`guests` end up as, same as a normal launch; bot-difficulty
+  UI, bull-off skip logic, and `startGame()`'s config-building are all
+  unmodified.
+
+### Tournament handling
+
+No change needed — checked `GameSummaryScreen.tsx`'s existing button
+branch: when `tournamentResult` is set (a tournament matchup was just
+recorded), the entire "BACK TO MENU" / "PLAY AGAIN" pair is already
+replaced by a single "BACK TO BRACKET" / "VIEW CHAMPION" button in a
+separate `if` branch. The new `rematch` wiring only touches the "PLAY
+AGAIN" button inside the non-tournament `else` branch, so tournament
+matches are structurally untouched by this change.
+
+### Files changed
+
+- `src/navigation/types.ts` — added `RematchConfig`, added `rematch?` to
+  both `GameSetup` route entries.
+- `src/screens/GameSetupScreen.tsx` — `rematch` param handling, new
+  `playersLoaded` state + prefill `useEffect`.
+- `src/screens/GameSummaryScreen.tsx` — `buildRematchConfig()`, wired into
+  the "PLAY AGAIN" `onPress`.
+
+Committed as `ee51f73` — "Logic Agent: add one-tap Rematch prefill from
+GameSummary to GameSetup".
+
+**Note on repo state:** at commit time, `git status` showed
+`src/components/SegmentButton.tsx`, `src/components/icons/Icon.tsx`, and
+`src/screens/BackupRestoreScreen.tsx` already modified in the working tree
+by other concurrent agent work (not touched by this task). `npx tsc --noEmit`
+currently reports one pre-existing error unrelated to this change —
+`BackupRestoreScreen.tsx(143,13): Type '"check-circle" | "alert-circle"' is
+not assignable to type 'IconName'` — confirmed via `git stash`/`tsc`/`git
+stash pop` that this error exists independent of my edits, in files I never
+touched. The three files this task changed compile clean on their own.
