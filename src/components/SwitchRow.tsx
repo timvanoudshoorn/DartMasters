@@ -52,6 +52,9 @@ export function SwitchRow({ label, value, onChange }: SwitchRowProps) {
       haptic="tick"
       scaleTo={0.97}
       style={styles.container}
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
     >
       <Text style={styles.label}>{label}</Text>
       <Animated.View style={[styles.track, trackStyle]}>

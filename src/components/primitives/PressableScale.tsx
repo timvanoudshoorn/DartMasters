@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleProp, ViewStyle } from 'react-native';
+import { AccessibilityRole, AccessibilityState, StyleProp, ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -25,6 +25,15 @@ interface PressableScaleProps {
   haptic?: HapticKind;
   sound?: SoundTrigger | null;
   hitSlop?: number;
+  /** Accessible label read by screen readers. Omit only when children already
+   * carry their own accessible text (e.g. a plain <Text> child). */
+  accessibilityLabel?: string;
+  /** Supplementary hint describing the result of the action. */
+  accessibilityHint?: string;
+  /** Semantic role announced by screen readers. Defaults to "button". */
+  accessibilityRole?: AccessibilityRole;
+  /** State (e.g. { checked } for a switch, { selected } for a tab). */
+  accessibilityState?: AccessibilityState;
 }
 
 /**
@@ -51,6 +60,10 @@ export function PressableScale({
   haptic: hapticKind = 'light',
   sound = null,
   hitSlop,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityRole = 'button',
+  accessibilityState,
 }: PressableScaleProps) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -89,7 +102,16 @@ export function PressableScale({
 
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View style={[animStyle, style]}>{children}</Animated.View>
+      <Animated.View
+        style={[animStyle, style]}
+        accessible
+        accessibilityRole={accessibilityRole}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={accessibilityState}
+      >
+        {children}
+      </Animated.View>
     </GestureDetector>
   );
 }
