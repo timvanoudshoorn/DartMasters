@@ -17,7 +17,7 @@ import { Screen } from '../components/Screen';
 import { AchievementStatus, computeAchievements } from '../logic/achievements';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
-import { STAGGER_MS } from '../theme/motion';
+import { reducedMs, staggerDelay } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 
 export function AchievementsScreen() {
@@ -95,7 +95,7 @@ function BadgeCard({ status, index }: { status: AchievementStatus; index: number
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * STAGGER_MS).duration(260)}
+      entering={FadeInDown.delay(staggerDelay(index)).duration(260)}
       style={[styles.card, earned && styles.cardEarned]}
     >
       <View style={styles.cardTop}>
@@ -104,7 +104,7 @@ function BadgeCard({ status, index }: { status: AchievementStatus; index: number
         </View>
         {earned && (
           <Animated.View
-            entering={ZoomIn.delay(index * STAGGER_MS + 150).springify().damping(11)}
+            entering={ZoomIn.delay(staggerDelay(index) + reducedMs(150)).springify().damping(11)}
             style={styles.earnedBadge}
           >
             <Icon name="checkmark" size={11} color={colors.onFill} />
@@ -118,7 +118,7 @@ function BadgeCard({ status, index }: { status: AchievementStatus; index: number
       {!earned && (
         <>
           <View style={styles.progressTrack}>
-            <ProgressFill percent={percent * 100} delay={index * STAGGER_MS + 150} />
+            <ProgressFill percent={percent * 100} delay={staggerDelay(index) + reducedMs(150)} />
           </View>
           <Text style={styles.progressLabel}>
             {progress}/{definition.target}
