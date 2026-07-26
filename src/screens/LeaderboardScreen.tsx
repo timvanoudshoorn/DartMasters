@@ -13,7 +13,7 @@ import { TabBar } from '../components/TabBar';
 import { aggregateCareerStats } from '../logic/stats';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
-import { STAGGER_MS } from '../theme/motion';
+import { reducedMs, staggerDelay } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
 const X01_TYPES: GameType[] = ['501', '301', '201', 'practice170'];
@@ -209,12 +209,12 @@ export function LeaderboardScreen() {
             return (
               <Animated.View
                 key={`${category}-${period}-${row.player.id}`}
-                entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+                entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(240)}
                 style={[styles.row, isYou && styles.rowYou]}
               >
                 {rankColor ? (
                   <Animated.View
-                    entering={ZoomIn.delay(Math.min(i, 8) * STAGGER_MS + 100).springify().damping(11)}
+                    entering={ZoomIn.delay(staggerDelay(Math.min(i, 8)) + reducedMs(100)).springify().damping(11)}
                     style={[styles.rankBadge, { backgroundColor: rankColor }]}
                   >
                     <Text style={[styles.rankText, styles.rankTextTop]}>{i + 1}</Text>
@@ -247,7 +247,7 @@ export function LeaderboardScreen() {
                 <CountUp
                   value={row.value}
                   format={(n) => formatRowValue(category, n)}
-                  delay={Math.min(i, 8) * STAGGER_MS + 150}
+                  delay={staggerDelay(Math.min(i, 8)) + reducedMs(150)}
                   duration={600}
                   style={styles.value}
                 />

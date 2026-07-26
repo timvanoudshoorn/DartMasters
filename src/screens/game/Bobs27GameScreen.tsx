@@ -15,7 +15,7 @@ import { hapticPattern } from '../../sound/haptics';
 import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
-import { STAGGER_MS } from '../../theme/motion';
+import { reducedMs, staggerDelay, STAGGER_MS } from '../../theme/motion';
 import { Bobs27PlayerState, GameConfig, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { guestIdentityMaps } from '../../utils/guestMaps';
@@ -195,7 +195,7 @@ export function Bobs27GameScreen({ config }: Props) {
           return (
             <Animated.View
               key={bp.playerId}
-              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+              entering={FadeInDown.delay(staggerDelay(i)).duration(260)}
               style={[styles.scoreCard, isActive && styles.scoreCardActive, bp.finished && styles.finishedCard]}
             >
               <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={24} active={isActive} />
@@ -212,7 +212,7 @@ export function Bobs27GameScreen({ config }: Props) {
         })}
       </View>
 
-      <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(280)} style={styles.spotlight}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(STAGGER_MS * 2)).duration(280)} style={styles.spotlight}>
         <Text style={styles.spotlightLabel}>{display.name.toUpperCase()} — ROUND {activeBobs.round} / {BOBS27_ROUNDS}</Text>
         <Text style={[styles.spotlightTarget, { color: colors.primaryHot }]}>D{activeBobs.round}</Text>
         <Text style={styles.hint}>Hit the double or lose {activeBobs.round * 2} points</Text>

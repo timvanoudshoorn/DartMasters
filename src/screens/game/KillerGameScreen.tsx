@@ -26,7 +26,7 @@ import { hapticPattern } from '../../sound/haptics';
 import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
-import { STAGGER_MS } from '../../theme/motion';
+import { staggerDelay } from '../../theme/motion';
 import { GameConfig, KillerPlayerState, MatchRecord, Multiplier, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { guestIdentityMaps } from '../../utils/guestMaps';
@@ -356,7 +356,7 @@ export function KillerGameScreen({ config }: Props) {
             return (
               <Animated.View
                 key={id}
-                entering={FadeInDown.delay(i * STAGGER_MS).duration(240)}
+                entering={FadeInDown.delay(staggerDelay(i)).duration(240)}
                 style={[styles.claimedChip, claimed && { borderColor: display(id).color }]}
               >
                 <Text style={styles.claimedChipName} numberOfLines={1}>
@@ -470,7 +470,7 @@ export function KillerGameScreen({ config }: Props) {
           return (
             <Animated.View
               key={kp.playerId}
-              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+              entering={FadeInDown.delay(staggerDelay(i)).duration(260)}
               style={{ width: '47%', flexGrow: 1 }}
             >
               <PressableScale

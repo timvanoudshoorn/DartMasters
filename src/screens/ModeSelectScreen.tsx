@@ -11,7 +11,7 @@ import { GAME_MODES } from '../data/gameModes';
 import { PlayStackParamList } from '../navigation/types';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
-import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
+import { PRESS_SCALE, staggerDelay } from '../theme/motion';
 
 export function ModeSelectScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<PlayStackParamList>>();
@@ -60,7 +60,7 @@ function ModeRow({
   onInfoPress: () => void;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(index * STAGGER_MS).duration(280)} style={styles.row}>
+    <Animated.View entering={FadeInDown.delay(staggerDelay(index)).duration(280)} style={styles.row}>
       <PressableScale
         scaleTo={PRESS_SCALE.row}
         haptic="light"

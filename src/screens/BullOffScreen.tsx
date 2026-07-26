@@ -13,7 +13,7 @@ import { useSoundEffects } from '../sound/useSoundEffects';
 import { BullOffStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
-import { STAGGER_MS } from '../theme/motion';
+import { staggerDelay } from '../theme/motion';
 import { GameConfig, Player } from '../types';
 import { resolvePlayerDisplay } from '../utils/playerDisplay';
 import { randomInsert, shuffled } from '../utils/shuffle';
@@ -136,7 +136,7 @@ export function BullOffScreen() {
               return (
                 <Animated.View
                   key={id}
-                  entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+                  entering={FadeInDown.delay(staggerDelay(i)).duration(260)}
                   style={styles.pickTileWrap}
                 >
                   <PressableScale onPress={() => pick(id)} haptic="medium" scaleTo={0.93} style={styles.pickTile}>

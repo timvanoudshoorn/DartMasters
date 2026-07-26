@@ -23,7 +23,7 @@ import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
-import { STAGGER_MS } from '../../theme/motion';
+import { reducedMs, staggerDelay, STAGGER_MS } from '../../theme/motion';
 import { GameConfig, HALVE_IT_SEQUENCE, HalveItPlayerState, HalveItTarget, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { guestIdentityMaps } from '../../utils/guestMaps';
@@ -277,7 +277,7 @@ export function HalveItGameScreen({ config }: Props) {
           return (
             <Animated.View
               key={hp.playerId}
-              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+              entering={FadeInDown.delay(staggerDelay(i)).duration(260)}
               style={[styles.scoreCard, isActive && styles.scoreCardActive]}
             >
               <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={26} active={isActive} />
@@ -291,7 +291,7 @@ export function HalveItGameScreen({ config }: Props) {
         })}
       </View>
 
-      <Animated.View entering={FadeInDown.delay(STAGGER_MS * 2).duration(280)} style={styles.spotlight}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(STAGGER_MS * 2)).duration(280)} style={styles.spotlight}>
         <Text style={styles.spotlightLabel}>
           {activeDisplay.name.toUpperCase()} — TARGET THIS ROUND
         </Text>

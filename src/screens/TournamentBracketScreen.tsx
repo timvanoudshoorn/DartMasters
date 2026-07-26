@@ -16,6 +16,7 @@ import { PlayerStorage } from '../storage/storage';
 import { TournamentStorage } from '../storage/tournament';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS, FONT } from '../theme/colors';
+import { staggerDelay } from '../theme/motion';
 import { GameConfig, Player, Tournament, TournamentMatchup } from '../types';
 import { PlayerDisplay, resolvePlayerDisplay } from '../utils/playerDisplay';
 
@@ -109,7 +110,7 @@ export function TournamentBracketScreen() {
             return (
               <Animated.View
                 key={matchup.id}
-                entering={FadeInDown.delay((ri * round.matchups.length + mi) * 40).duration(240)}
+                entering={FadeInDown.delay(staggerDelay(ri * round.matchups.length + mi, 40)).duration(240)}
               >
                 <MatchupCard matchup={matchup} display={display}>
                   {isNext && (

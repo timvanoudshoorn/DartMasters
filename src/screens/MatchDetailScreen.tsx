@@ -13,7 +13,7 @@ import { getGameModeInfo } from '../data/gameModes';
 import { StatsStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing, typography } from '../theme';
-import { STAGGER_MS } from '../theme/motion';
+import { staggerDelay } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 import { resolvePlayerDisplayFromMatch } from '../utils/playerDisplay';
 
@@ -76,7 +76,7 @@ export function MatchDetailScreen() {
         if (!r) return null;
         const isWinner = id === match.winnerId;
         return (
-          <Animated.View key={id} entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}>
+          <Animated.View key={id} entering={FadeInDown.delay(staggerDelay(i)).duration(260)}>
             <Card
               elevated={isWinner}
               style={[styles.playerCard, isWinner && { borderColor: display.color }]}
@@ -119,7 +119,7 @@ export function MatchDetailScreen() {
         );
       })}
 
-      <Animated.View entering={FadeInUp.delay(match.playerIds.length * STAGGER_MS).duration(260)}>
+      <Animated.View entering={FadeInUp.delay(staggerDelay(match.playerIds.length)).duration(260)}>
         <Button label="DELETE MATCH" variant="danger" onPress={deleteMatch} style={{ marginTop: spacing.lg, marginBottom: spacing.xl }} />
       </Animated.View>
     </Screen>

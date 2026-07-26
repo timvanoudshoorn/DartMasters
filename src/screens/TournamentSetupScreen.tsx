@@ -19,6 +19,7 @@ import { RootStackParamList } from '../navigation/types';
 import { PlayerStorage } from '../storage/storage';
 import { TournamentStorage } from '../storage/tournament';
 import { colors, fonts, playerColor, radius, spacing } from '../theme';
+import { reducedMs } from '../theme/motion';
 import { GameConfig, GameType, InMode, OutMode, Player, Tournament } from '../types';
 import { generateId } from '../utils/id';
 
@@ -167,7 +168,7 @@ export function TournamentSetupScreen() {
     <Screen scroll>
       <Header title="New Tournament" subtitle="Single elimination bracket" onBack={() => navigation.goBack()} />
 
-      <Animated.View entering={FadeInDown.delay(60).duration(280)}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(60)).duration(280)}>
         <Card style={{ marginBottom: spacing.lg }}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>PLAYERS</Text>
@@ -213,7 +214,7 @@ export function TournamentSetupScreen() {
         </Card>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(140).duration(280)}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(140)).duration(280)}>
         <Card>
           <Text style={styles.sectionTitle}>MATCH FORMAT</Text>
           <Text style={styles.hint}>Every round is played with this format</Text>

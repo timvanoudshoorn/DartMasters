@@ -19,6 +19,7 @@ import { BOT_DIFFICULTIES, BOT_PROFILES } from '../logic/bot';
 import { RootStackParamList } from '../navigation/types';
 import { PlayerStorage, SettingsStorage } from '../storage/storage';
 import { colors, fonts, playerColor, radius, spacing, typography } from '../theme';
+import { reducedMs, staggerDelay } from '../theme/motion';
 import { BotDifficulty, GameConfig, InMode, OutMode, Player } from '../types';
 import { generateId } from '../utils/id';
 import { shuffled } from '../utils/shuffle';
@@ -207,7 +208,7 @@ export function GameSetupScreen() {
     <Screen scroll>
       <Header title={modeInfo.title} subtitle={modeInfo.subtitle} onBack={() => navigation.goBack()} />
 
-      <Animated.View entering={FadeInDown.delay(60).duration(280)}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(60)).duration(280)}>
       <Card style={{ marginBottom: spacing.lg }}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>PLAYERS</Text>
@@ -261,7 +262,7 @@ export function GameSetupScreen() {
         {pickingBotDifficulty && (
           <View style={styles.botDifficultyRow}>
             {BOT_DIFFICULTIES.map((d, i) => (
-              <Animated.View key={d} entering={FadeInDown.delay(i * 40).duration(200)}>
+              <Animated.View key={d} entering={FadeInDown.delay(staggerDelay(i, 40)).duration(200)}>
                 <PressableScale onPress={() => addBot(d)} haptic="tick" scaleTo={0.94} style={styles.botDifficultyChip}>
                   <Text style={styles.botDifficultyLabel}>{BOT_PROFILES[d].label}</Text>
                   <Text style={styles.botDifficultySub}>~{BOT_PROFILES[d].avgTarget} avg</Text>
@@ -276,7 +277,7 @@ export function GameSetupScreen() {
       </Card>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(140).duration(280)}>
+      <Animated.View entering={FadeInDown.delay(reducedMs(140)).duration(280)}>
       <Card>
         <Text style={styles.sectionTitle}>MATCH SETTINGS</Text>
 

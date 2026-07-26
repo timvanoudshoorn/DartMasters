@@ -13,7 +13,7 @@ import { PlayersStackParamList } from '../navigation/types';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
-import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
+import { PRESS_SCALE, staggerDelay } from '../theme/motion';
 import { MatchRecord, Player } from '../types';
 
 export function PlayersListScreen() {
@@ -81,7 +81,7 @@ export function PlayersListScreen() {
           const gamesPlayed = matches.filter((m) => m.results[p.id]).length;
           const wins = matches.filter((m) => m.winnerId === p.id).length;
           return (
-            <Animated.View key={p.id} entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(260)}>
+            <Animated.View key={p.id} entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(260)}>
               <PressableScale
                 scaleTo={PRESS_SCALE.row}
                 haptic="light"

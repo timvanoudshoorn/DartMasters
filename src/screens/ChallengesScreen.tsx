@@ -15,7 +15,7 @@ import { Screen } from '../components/Screen';
 import { TabBar } from '../components/TabBar';
 import { ChallengeStatus, computeDailyChallengeReport, DailyChallengeReport } from '../logic/challengeProgress';
 import { colors, fonts, radius, spacing } from '../theme';
-import { STAGGER_MS } from '../theme/motion';
+import { reducedMs, staggerDelay } from '../theme/motion';
 
 type Tab = 'solo' | 'multiplayer';
 
@@ -77,14 +77,14 @@ function ChallengeCard({ status, index }: { status: ChallengeStatus; index: numb
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * STAGGER_MS).duration(260)}
+      entering={FadeInDown.delay(staggerDelay(index)).duration(260)}
       style={[styles.card, completed && styles.cardCompleted]}
     >
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{definition.title}</Text>
         {completed ? (
           <Animated.View
-            entering={ZoomIn.delay(index * STAGGER_MS + 200).springify().damping(11)}
+            entering={ZoomIn.delay(staggerDelay(index) + reducedMs(200)).springify().damping(11)}
             style={styles.checkBadge}
           >
             <Icon name="checkmark" size={14} color={colors.onFill} />
@@ -96,7 +96,7 @@ function ChallengeCard({ status, index }: { status: ChallengeStatus; index: numb
         )}
       </View>
       <View style={styles.progressTrack}>
-        <ProgressFill percent={percent * 100} delay={index * STAGGER_MS + 150} />
+        <ProgressFill percent={percent * 100} delay={staggerDelay(index) + reducedMs(150)} />
       </View>
     </Animated.View>
   );

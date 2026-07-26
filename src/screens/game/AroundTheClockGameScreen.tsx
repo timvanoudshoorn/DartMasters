@@ -28,7 +28,7 @@ import { hapticPattern } from '../../sound/haptics';
 import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
 import { colors, fonts, radius, spacing } from '../../theme';
-import { STAGGER_MS } from '../../theme/motion';
+import { staggerDelay } from '../../theme/motion';
 import { ATC_SEQUENCE, AtcPlayerState, GameConfig, MatchRecord, Player } from '../../types';
 import { generateId } from '../../utils/id';
 import { guestIdentityMaps } from '../../utils/guestMaps';
@@ -267,7 +267,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
           return (
             <Animated.View
               key={p.playerId}
-              entering={FadeInDown.delay(i * STAGGER_MS).duration(260)}
+              entering={FadeInDown.delay(staggerDelay(i)).duration(260)}
               style={styles.trackRow}
             >
               <PlayerAvatar name={display.name} color={display.color} avatar={display.avatar} photoUri={display.photoUri} size={26} active={isActive} />
@@ -286,7 +286,7 @@ export function AroundTheClockGameScreen({ config }: Props) {
       </View>
 
       <Animated.View
-        entering={FadeInDown.delay(atcPlayers.length * STAGGER_MS).duration(280)}
+        entering={FadeInDown.delay(staggerDelay(atcPlayers.length)).duration(280)}
         style={styles.spotlight}
       >
         <Text style={styles.spotlightLabel}>{activeDisplay.name.toUpperCase()}'S TARGET</Text>

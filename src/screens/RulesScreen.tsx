@@ -10,7 +10,7 @@ import { GAME_MODES, GameModeInfo } from '../data/gameModes';
 import { GAME_RULES } from '../data/rules';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
-import { SPRING_GENTLE, STAGGER_MS } from '../theme/motion';
+import { SPRING_GENTLE, staggerDelay } from '../theme/motion';
 import { GameType } from '../types';
 
 type Route = { params?: { gameType?: GameType } };
@@ -57,7 +57,7 @@ function ModeRuleCard({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * STAGGER_MS).duration(280)}
+      entering={FadeInDown.delay(staggerDelay(index)).duration(280)}
       layout={Layout.springify().damping(SPRING_GENTLE.damping).stiffness(SPRING_GENTLE.stiffness)}
       style={styles.card}
     >

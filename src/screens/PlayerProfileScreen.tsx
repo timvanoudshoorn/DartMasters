@@ -27,7 +27,7 @@ import { RootStackParamList } from '../navigation/types';
 import { GoalsStorage, PlayerGoals } from '../storage/goals';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
-import { STAGGER_MS } from '../theme/motion';
+import { reducedMs, staggerDelay } from '../theme/motion';
 import { GameType, MatchRecord, Player } from '../types';
 
 type Route = { params: { playerId: string } };
@@ -165,7 +165,7 @@ export function PlayerProfileScreen() {
         <Text style={styles.name}>{player.name}</Text>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(STAGGER_MS).duration(280)} style={styles.overallGrid}>
+      <Animated.View entering={FadeInDown.delay(staggerDelay(1)).duration(280)} style={styles.overallGrid}>
         <StatPill label="Games" value={overall.gamesPlayed} />
         <StatPill label="Wins" value={overall.gamesWon} accent={colors.primary} />
         <StatPill label="Win Rate" value={`${overall.winRate}%`} accent={colors.gold} />
@@ -175,7 +175,7 @@ export function PlayerProfileScreen() {
         <EmptyState icon="stats" title="No games played yet" />
       ) : (
         typesPlayed.map((type, i) => (
-          <Animated.View key={type} entering={FadeInDown.delay(STAGGER_MS * (i + 2)).duration(280)}>
+          <Animated.View key={type} entering={FadeInDown.delay(staggerDelay(i + 2)).duration(280)}>
             <GameTypeStats playerId={playerId} matches={matches} gameType={type} />
           </Animated.View>
         ))
@@ -224,7 +224,7 @@ export function PlayerProfileScreen() {
           return (
             <Animated.View
               key={m.id}
-              entering={FadeInDown.delay(Math.min(i, 8) * STAGGER_MS).duration(240)}
+              entering={FadeInDown.delay(staggerDelay(Math.min(i, 8))).duration(240)}
               style={styles.matchRow}
             >
               <Icon name={modeInfo.icon} size={16} color={modeInfo.color} />
@@ -281,7 +281,7 @@ function PersonalBestTile({
   };
 
   return (
-    <Animated.View entering={FadeInDown.delay(STAGGER_MS * index).duration(240)} style={styles.pbTileWrap}>
+    <Animated.View entering={FadeInDown.delay(staggerDelay(index)).duration(240)} style={styles.pbTileWrap}>
       <PressableScale
         onPress={onPress}
         disabled={!record.matchId}
@@ -291,7 +291,7 @@ function PersonalBestTile({
       >
         <Icon name={PB_ICONS[record.id]} size={16} color={colors.primaryHot} />
         {numeric ? (
-          <CountUp value={record.value as number} format={format} style={styles.pbValue} delay={index * STAGGER_MS} />
+          <CountUp value={record.value as number} format={format} style={styles.pbValue} delay={staggerDelay(index)} />
         ) : (
           <Text style={styles.pbValue}>{record.formatted}</Text>
         )}
@@ -318,13 +318,13 @@ function GoalRow({
   const width = useSharedValue(0);
 
   useEffect(() => {
-    width.value = withDelay(index * STAGGER_MS + 150, withTiming(percent, { duration: 550 }));
+    width.value = withDelay(staggerDelay(index) + reducedMs(150), withTiming(percent, { duration: 550 }));
   }, [percent]);
 
   const fillStyle = useAnimatedStyle(() => ({ width: `${width.value}%` }));
 
   return (
-    <Animated.View entering={FadeInDown.delay(STAGGER_MS * index).duration(240)}>
+    <Animated.View entering={FadeInDown.delay(staggerDelay(index)).duration(240)}>
       <PressableScale onPress={onPress} haptic="light" scaleTo={0.98} style={styles.goalRow}>
         <View style={styles.goalHeader}>
           <Text style={styles.goalLabel}>{def.label}</Text>
