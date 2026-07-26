@@ -46,6 +46,8 @@ export function PlayerPairChips({ players, pickedIds, onToggle, avatarSize = 26 
             haptic="tick"
             scaleTo={0.94}
             style={[styles.chip, selected && { borderColor: p.color, backgroundColor: p.color + '14' }]}
+            accessibilityLabel={p.name}
+            accessibilityState={{ selected }}
           >
             <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={avatarSize} active={selected} />
             <Text style={[styles.chipLabel, selected && styles.chipLabelActive]} numberOfLines={1}>

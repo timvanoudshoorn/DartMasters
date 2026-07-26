@@ -40,6 +40,8 @@ export function PlayerFilterChips({ players, selectedId, onSelect, avatarSize = 
             haptic="tick"
             scaleTo={0.94}
             style={[styles.chip, active && styles.chipActive]}
+            accessibilityLabel={p.name}
+            accessibilityState={{ selected: active }}
           >
             <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={avatarSize} />
             <Text style={[styles.chipLabel, active && styles.chipLabelActive]} numberOfLines={1}>

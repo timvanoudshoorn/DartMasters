@@ -72,6 +72,8 @@ export function MultiplierSelector({ value, onChange, disabled }: MultiplierSele
               onChange(opt.value);
             }}
             style={styles.segment}
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected }}
           >
             <Text
               style={[

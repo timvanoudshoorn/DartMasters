@@ -24,6 +24,7 @@ export function Header({ title, subtitle, onBack, right }: HeaderProps) {
             hitSlop={10}
             scaleTo={0.9}
             style={styles.backBtn}
+            accessibilityLabel="Go back"
           >
             <Icon name="back" size={20} color={colors.textPrimary} />
           </PressableScale>

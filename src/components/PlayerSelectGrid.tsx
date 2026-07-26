@@ -39,6 +39,8 @@ export function PlayerSelectGrid({
                 backgroundColor: p.color + '14',
               },
             ]}
+            accessibilityLabel={p.name}
+            accessibilityState={{ selected }}
           >
             <PlayerAvatar name={p.name} color={p.color} avatar={p.avatar} photoUri={p.photoUri} size={32} active={selected} />
             <Text style={[styles.name, selected && { color: colors.textPrimary }]}>{p.name}</Text>

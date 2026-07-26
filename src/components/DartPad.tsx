@@ -49,6 +49,7 @@ export function DartPad({ onDart, disabled, primeSegments, variant = 'default' }
 
   const renderTile = (n: number) => {
     const isPrime = !!primeSet?.has(n);
+    const multiplierLabel = multiplier === 3 ? 'Triple' : multiplier === 2 ? 'Double' : 'Single';
     return (
       <PressableScale
         key={n}
@@ -57,6 +58,7 @@ export function DartPad({ onDart, disabled, primeSegments, variant = 'default' }
         haptic="none"
         onPress={() => tapSegment(n)}
         style={variant === 'x01' ? styles.tileWrapRow : styles.tileWrap}
+        accessibilityLabel={`${multiplierLabel} ${n}`}
       >
         <View
           style={[
@@ -93,6 +95,7 @@ export function DartPad({ onDart, disabled, primeSegments, variant = 'default' }
           haptic="none"
           onPress={() => tapSegment(25)}
           style={{ flex: 2 }}
+          accessibilityLabel={multiplier >= 2 ? 'Double bull' : 'Bull'}
         >
           <View style={[styles.bullBtn, disabled && styles.disabled]}>
             <Text style={styles.bullText}>BULL{multiplier >= 2 ? '  ·  DOUBLE' : ''}</Text>
@@ -112,6 +115,7 @@ export function DartPad({ onDart, disabled, primeSegments, variant = 'default' }
             setMultiplier(1);
           }}
           style={{ flex: 1 }}
+          accessibilityLabel="Miss"
         >
           <View style={[styles.missBtn, disabled && styles.disabled]}>
             <Text style={styles.missText}>MISS</Text>

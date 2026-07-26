@@ -38,7 +38,14 @@ interface GameHudProps {
 export function GameHud({ onExit, centerContent, dartsThisTurn, rightAction }: GameHudProps) {
   return (
     <View style={styles.topBar}>
-      <PressableScale onPress={onExit} hitSlop={10} haptic="light" scaleTo={0.88} style={styles.exitBtn}>
+      <PressableScale
+        onPress={onExit}
+        hitSlop={10}
+        haptic="light"
+        scaleTo={0.88}
+        style={styles.exitBtn}
+        accessibilityLabel="Exit game"
+      >
         <Icon name="close" size={16} color={colors.textMuted} />
       </PressableScale>
 
@@ -82,6 +89,7 @@ export function HudUndoButton({ onPress, disabled }: { onPress: () => void; disa
       scaleTo={0.88}
       hitSlop={8}
       style={[styles.undoBtn, disabled && styles.undoBtnDisabled]}
+      accessibilityLabel="Undo last dart"
     >
       <Icon name="undo" size={15} color={colors.textMuted} />
     </PressableScale>

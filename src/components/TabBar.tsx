@@ -33,6 +33,8 @@ export function TabBar<T extends string = string>({ options, value, onChange }: 
             haptic="tick"
             scaleTo={0.95}
             style={[styles.btn, active && styles.btnActive]}
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected: active }}
           >
             <Text style={[styles.label, active && styles.labelActive]}>{opt.label}</Text>
           </PressableScale>
