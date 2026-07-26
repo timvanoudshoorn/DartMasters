@@ -5,9 +5,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { AnimatedScore } from '../../components/AnimatedScore';
 import { BotThinkingBadge } from '../../components/BotThinkingBadge';
+import { DartPad } from '../../components/DartPad';
 import { EventStinger, StingerEvent } from '../../components/effects/EventStinger';
+import { GameHud } from '../../components/GameHud';
 import { Icon } from '../../components/icons/Icon';
-import { MultiplierSelector } from '../../components/MultiplierSelector';
 import { PlayerAvatar } from '../../components/PlayerAvatar';
 import { PressableScale } from '../../components/primitives/PressableScale';
 import { Screen } from '../../components/Screen';
@@ -19,13 +20,12 @@ import { computeX01PlayerResult } from '../../logic/stats';
 import { BOT_PROFILES, decideX01Dart } from '../../logic/bot';
 import { PlayStackParamList } from '../../navigation/types';
 import { MatchStorage, PlayerStorage } from '../../storage/storage';
-import { haptic, hapticPattern } from '../../sound/haptics';
+import { haptic } from '../../sound/haptics';
 import { playSound } from '../../sound/soundManager';
 import { useSoundEffects } from '../../sound/useSoundEffects';
-import { spacing } from '../../theme';
+import { radius, spacing } from '../../theme';
 import { COLORS, FONT } from '../../theme/colors';
-import { PRESS_SCALE } from '../../theme/motion';
-import { Dart, GameConfig, MatchRecord, Multiplier, Player, X01PlayerState } from '../../types';
+import { Dart, GameConfig, MatchRecord, Player, X01PlayerState } from '../../types';
 import { announceGameOn, announceGameShot, announceScore, cancelAnnouncements } from '../../utils/dartAnnouncer';
 import { generateId } from '../../utils/id';
 import { resolvePlayerDisplay } from '../../utils/playerDisplay';
@@ -46,17 +46,11 @@ interface MatchState {
   legWinnerHistory: string[];
 }
 
-const NUMBER_GRID_ROWS = [
-  [20, 1, 18, 4, 13],
-  [6, 10, 15, 2, 17],
-  [3, 19, 7, 16, 8],
-  [11, 14, 9, 12, 5],
-];
-
 const BUST_DISPLAY_MS = 1500;
 
-// Numbers frequently targeted (20, 19, 18 — top three targets)
-const PRIME_SEGMENTS = new Set([20, 19, 18]);
+// Numbers frequently targeted (20, 19, 18 — top three targets); passed to
+// the shared DartPad as its prime-segment highlight set.
+const PRIME_SEGMENTS = [20, 19, 18];
 
 function createInitialState(config: GameConfig): MatchState {
   const startingScore = config.startingScore ?? 501;
@@ -91,7 +85,6 @@ export function X01GameScreen({ config }: Props) {
   const [liveRemaining, setLiveRemaining] = useState(config.startingScore ?? 501);
   const [liveOpened, setLiveOpened] = useState(config.inMode === 'straight');
   const [bustFlash, setBustFlash] = useState(false);
-  const [multiplier, setMultiplier] = useState<Multiplier>(1);
   const [stinger, setStinger] = useState<StingerEvent | null>(null);
   const history = useRef<{ state: MatchState; visitDarts: Dart[]; liveRemaining: number; liveOpened: boolean }[]>([]);
   const startingScore = config.startingScore ?? 501;
@@ -366,19 +359,6 @@ export function X01GameScreen({ config }: Props) {
     }
   };
 
-  const tapSegment = (segment: number) => {
-    const effectiveMultiplier = segment === 25 ? (Math.min(multiplier, 2) as Multiplier) : multiplier;
-    hapticPattern.dartHit(effectiveMultiplier);
-    tapDart({ segment, multiplier: effectiveMultiplier });
-    setMultiplier(1);
-  };
-
-  const tapMiss = () => {
-    hapticPattern.miss();
-    tapDart({ segment: 0, multiplier: 1 });
-    setMultiplier(1);
-  };
-
   const enqueueDetectedDarts = (darts: Dart[]) => {
     dartQueueRef.current = darts.slice(0, 3);
     queueOwnerRef.current = activePlayerId;
@@ -423,34 +403,24 @@ export function X01GameScreen({ config }: Props) {
 
   const inputDisabled = bustFlash || isBot(activePlayerId);
   const showDoubleInBadge = config.inMode === 'double' && !liveOpened && !bustFlash;
-  const armed = multiplier > 1;
 
   return (
     <Screen padded={false}>
       <ScreenFlash trigger={bustFlash} color={COLORS.bust} />
       <EventStinger event={stinger} onDone={() => setStinger(null)} />
 
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <PressableScale onPress={() => navigation.goBack()} hitSlop={12} haptic="light" scaleTo={0.88} style={styles.topBtn}>
-          <Icon name="back" size={18} color={COLORS.text} />
-        </PressableScale>
-        <View style={styles.topCenter}>
-          <Text style={styles.topTitle}>
-            {config.gameType.toUpperCase()} · {variantLabel}
-          </Text>
-          <Text style={styles.topSubtitle}>{legSetLabel}</Text>
-        </View>
-        <PressableScale
-          onPress={undo}
-          hitSlop={12}
-          disabled={history.current.length === 0}
-          haptic="tick"
-          scaleTo={0.88}
-          style={styles.topBtn}
-        >
-          <Icon name="undo" size={18} color={history.current.length === 0 ? COLORS.textDim : COLORS.text} />
-        </PressableScale>
+      <View style={styles.hudWrap}>
+        <GameHud
+          onExit={() => navigation.goBack()}
+          centerContent={
+            <View style={styles.topCenter}>
+              <Text style={styles.topTitle}>
+                {config.gameType.toUpperCase()} · {variantLabel}
+              </Text>
+              <Text style={styles.topSubtitle}>{legSetLabel}</Text>
+            </View>
+          }
+        />
       </View>
 
       {/* 2-player head-to-head layout */}
@@ -664,87 +634,31 @@ export function X01GameScreen({ config }: Props) {
           <Text style={styles.toFinishLabel}>
             TO FINISH  <Text style={styles.toFinishValue}>{liveRemaining}</Text>
           </Text>
-          <PressableScale
-            disabled={inputDisabled}
-            onPress={openCameraScoring}
-            haptic="light"
-            scaleTo={0.88}
-            hitSlop={8}
-            style={[styles.cameraBtn, inputDisabled && styles.disabled]}
-          >
-            <Icon name="camera" size={16} color={COLORS.textSub} />
-          </PressableScale>
+          <View style={styles.deckHeaderBtns}>
+            <PressableScale
+              onPress={undo}
+              disabled={history.current.length === 0}
+              haptic="tick"
+              scaleTo={0.88}
+              hitSlop={8}
+              style={[styles.cameraBtn, history.current.length === 0 && styles.disabled]}
+            >
+              <Icon name="undo" size={16} color={COLORS.textSub} />
+            </PressableScale>
+            <PressableScale
+              disabled={inputDisabled}
+              onPress={openCameraScoring}
+              haptic="light"
+              scaleTo={0.88}
+              hitSlop={8}
+              style={[styles.cameraBtn, inputDisabled && styles.disabled]}
+            >
+              <Icon name="camera" size={16} color={COLORS.textSub} />
+            </PressableScale>
+          </View>
         </View>
 
-        <View style={styles.multiplierRow}>
-          <MultiplierSelector value={multiplier} onChange={setMultiplier} disabled={inputDisabled} />
-        </View>
-
-        {/* Number grid */}
-        <View style={styles.numberGrid}>
-          {NUMBER_GRID_ROWS.map((row, ri) => (
-            <View key={ri} style={styles.numberGridRow}>
-              {row.map((n) => {
-                const isPrime = PRIME_SEGMENTS.has(n);
-                return (
-                  <PressableScale
-                    key={n}
-                    disabled={inputDisabled}
-                    onPress={() => tapSegment(n)}
-                    haptic="none"
-                    scaleTo={PRESS_SCALE.key}
-                    style={styles.numberBtnWrap}
-                  >
-                    <View
-                      style={[
-                        styles.numberBtn,
-                        isPrime && styles.numberBtnPrime,
-                        armed && styles.numberBtnArmed,
-                        inputDisabled && styles.disabled,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.numberBtnText,
-                          n === 20 && !armed && styles.numberBtnTextTop,
-                          armed && styles.numberBtnTextArmed,
-                        ]}
-                      >
-                        {n}
-                      </Text>
-                    </View>
-                  </PressableScale>
-                );
-              })}
-            </View>
-          ))}
-        </View>
-
-        {/* Bottom row */}
-        <View style={styles.bottomRow}>
-          <PressableScale
-            disabled={inputDisabled}
-            onPress={() => tapSegment(25)}
-            haptic="none"
-            scaleTo={PRESS_SCALE.key}
-            style={{ flex: 2 }}
-          >
-            <View style={[styles.bottomBtn, styles.bullBtn, inputDisabled && styles.disabled]}>
-              <Text style={styles.bullBtnText}>BULL{multiplier >= 2 ? '  ·  DOUBLE' : ''}</Text>
-            </View>
-          </PressableScale>
-          <PressableScale
-            disabled={inputDisabled}
-            onPress={tapMiss}
-            haptic="none"
-            scaleTo={PRESS_SCALE.key}
-            style={{ flex: 1 }}
-          >
-            <View style={[styles.bottomBtn, styles.missBtn, inputDisabled && styles.disabled]}>
-              <Text style={styles.missBtnText}>MISS</Text>
-            </View>
-          </PressableScale>
-        </View>
+        <DartPad onDart={tapDart} disabled={inputDisabled} variant="x01" primeSegments={PRIME_SEGMENTS} />
 
         {botThinking && <BotThinkingBadge />}
         <View style={{ height: spacing.md }} />
@@ -785,24 +699,8 @@ function botPlayerIds(config: GameConfig): string[] | undefined {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 4,
-    paddingBottom: 10,
+  hudWrap: {
     paddingHorizontal: 16,
-  },
-  topBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderTopColor: COLORS.edge,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   topCenter: {
     alignItems: 'center',
@@ -835,7 +733,7 @@ const styles = StyleSheet.create({
   legDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: radius.full,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.borderStrong,
@@ -858,7 +756,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderTopColor: COLORS.edge,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -893,7 +791,7 @@ const styles = StyleSheet.create({
   activePip: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: radius.full,
     backgroundColor: COLORS.accentHot,
   },
   scoreBlockValue: {
@@ -943,7 +841,7 @@ const styles = StyleSheet.create({
   vsChip: {
     width: 26,
     height: 26,
-    borderRadius: 13,
+    borderRadius: radius.full,
     backgroundColor: COLORS.card2,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1042,7 +940,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bustGlow,
     borderWidth: 1.5,
     borderColor: COLORS.bust,
-    borderRadius: 14,
+    borderRadius: radius.md,
     marginHorizontal: 14,
     marginBottom: 10,
     paddingVertical: 16,
@@ -1068,7 +966,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.positiveGlow,
     borderWidth: 1,
     borderColor: COLORS.positiveBorder,
-    borderRadius: 14,
+    borderRadius: radius.md,
     marginHorizontal: 14,
     marginBottom: 10,
     paddingVertical: 11,
@@ -1112,7 +1010,7 @@ const styles = StyleSheet.create({
   checkoutBullseye: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: radius.full,
     backgroundColor: 'rgba(87,160,95,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1136,7 +1034,7 @@ const styles = StyleSheet.create({
   turnDot: {
     width: 7,
     height: 7,
-    borderRadius: 3.5,
+    borderRadius: radius.full,
     backgroundColor: COLORS.accentHot,
   },
   turnStripText: {
@@ -1166,7 +1064,7 @@ const styles = StyleSheet.create({
   dartSlot: {
     flex: 1,
     height: 38,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1230,8 +1128,8 @@ const styles = StyleSheet.create({
   // Input tray
   deck: {
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     borderTopWidth: 1,
     borderTopColor: COLORS.edge,
     paddingTop: 10,
@@ -1260,103 +1158,20 @@ const styles = StyleSheet.create({
     color: COLORS.textSub,
     letterSpacing: 0,
   },
+  deckHeaderBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   cameraBtn: {
     width: 32,
     height: 32,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderTopColor: COLORS.edge,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  // Multiplier row
-  multiplierRow: {
-    marginBottom: 8,
-  },
-
-  // Number grid
-  numberGrid: {
-    gap: 5,
-    marginBottom: 8,
-  },
-  numberGridRow: {
-    flexDirection: 'row',
-    gap: 5,
-  },
-  numberBtnWrap: {
-    flex: 1,
-  },
-  numberBtn: {
-    backgroundColor: COLORS.card2,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderTopColor: COLORS.edge,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-  },
-  numberBtnPrime: {
-    backgroundColor: COLORS.raised,
-    borderColor: COLORS.borderStrong,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-  },
-  numberBtnArmed: {
-    backgroundColor: COLORS.accentDim,
-    borderColor: COLORS.accentBorder,
-  },
-  numberBtnText: {
-    fontFamily: FONT.ui,
-    fontSize: 15,
-    color: COLORS.text,
-    letterSpacing: -0.3,
-  },
-  numberBtnTextTop: {
-    color: COLORS.accentHot,
-    fontSize: 16,
-  },
-  numberBtnTextArmed: {
-    color: COLORS.accentHot,
-  },
-
-  // Bottom row
-  bottomRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  bottomBtn: {
-    borderRadius: 11,
-    borderWidth: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  bullBtn: {
-    backgroundColor: COLORS.accentDim,
-    borderColor: COLORS.accentBorder,
-  },
-  bullBtnText: {
-    fontFamily: FONT.ui,
-    fontSize: 11,
-    color: COLORS.accentHot,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  missBtn: {
-    backgroundColor: COLORS.bustGlow,
-    borderColor: 'rgba(217,58,46,0.3)',
-  },
-  missBtnText: {
-    fontFamily: FONT.ui,
-    fontSize: 11,
-    color: COLORS.bust,
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
   },
   disabled: {
     opacity: 0.35,
