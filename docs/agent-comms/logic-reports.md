@@ -542,3 +542,77 @@ mistaken for something introduced by this work.
 
 - `Logic Agent: add newAchievementsFromMatch diffing wrapper` — `src/logic/achievements.ts`
 - `Logic Agent: make CheckoutTrainerStorage per-player, migration-safe` — `src/storage/storage.ts`, `src/screens/CheckoutTrainerScreen.tsx`
+
+## Round: computeDailyChallengeReport — support a specific player
+
+### Task — `src/logic/challengeProgress.ts`
+
+**Problem confirmed:** `primaryPlayer` was always
+`players.slice().sort((a, b) => a.createdAt - b.createdAt)[0]` — the
+oldest-created player profile — with no way to target anyone else.
+Nothing here is persisted; the report is recomputed fresh from
+`MatchRecord[]`/`BullOffRecord[]` on every call, so this was a pure
+function-signature change, no storage migration involved.
+
+**Final signature:**
+
+```ts
+export async function computeDailyChallengeReport(
+  selectedPlayerId?: string
+): Promise<DailyChallengeReport>
+```
+
+**Behavior:**
+- `selectedPlayerId` omitted → identical to before: oldest-created player
+  by `createdAt` (or `null` if no players exist).
+- `selectedPlayerId` provided and matches a player in `PlayerStorage.getAll()`
+  → that player's matches/bull-offs are used instead.
+- `selectedPlayerId` provided but matches no player (stale id, deleted
+  player, guest cleared, etc.) → falls back to the same oldest-created
+  player as before. Never throws, never returns a broken/empty state
+  just because of a bad id.
+
+Internally: `oldestPlayer` is computed exactly as before; `primaryPlayer =
+selectedPlayerId ? (players.find(p => p.id === selectedPlayerId) ??
+oldestPlayer) : oldestPlayer`. Everything downstream (`todaysMatches`
+filter, `ctx`, `evaluate`, returned `playerId`) is unchanged and just
+keys off whichever player object `primaryPlayer` resolves to.
+
+**Call sites confirmed unaffected (both call with zero args, so both keep
+today's exact "oldest-created" behavior with no code changes needed):**
+- `src/screens/HomeScreen.tsx:59` — `computeDailyChallengeReport().then(setChallengeReport)...`
+  (device-owner headline widget; matches the same "primary player"
+  convention `src/utils/overview.ts` already uses elsewhere per this
+  cycle's audit — intentionally left on the default, no param added)
+- `src/screens/ChallengesScreen.tsx:29` — `computeDailyChallengeReport()...`
+  (out of scope this round — UI agent wires the picker here next)
+
+No other real call sites exist in `src/` (grepped repo-wide; remaining
+hits are stale copies under `.claude/worktrees/*` and doc/log mentions,
+not live code).
+
+**Guidance for the follow-up UI Agent (`ChallengesScreen.tsx`):** once you
+add the `PlayerFilterChips` picker and track the selected player id in
+local state (e.g. `selectedPlayerId: string | null`), just pass it
+through:
+
+```ts
+computeDailyChallengeReport(selectedPlayerId ?? undefined)
+  .then(setChallengeReport)
+  .catch(...)
+```
+
+Passing `null` won't compile against `string | undefined` — coerce with
+`?? undefined` (or type your state as `string | undefined` directly).
+Re-run this whenever the picker selection changes (add it to your
+effect's dependency array / re-fetch trigger) so the report recomputes
+per the newly selected player. No other shape changed — `DailyChallengeReport.playerId`
+in the response will reflect whichever player was actually resolved
+(selected player, or the oldest-created fallback), so it's safe to use
+directly to confirm which player's data is showing.
+
+`npx tsc --noEmit` is clean.
+
+### Commits
+
+- `Logic Agent: add optional selectedPlayerId param to computeDailyChallengeReport` — `src/logic/challengeProgress.ts`
