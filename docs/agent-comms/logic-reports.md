@@ -403,3 +403,20 @@ existing function).
 
 Files touched: `src/logic/personalBests.ts`,
 `docs/agent-comms/collab-pb-celebration.md`.
+
+**Note on commit interleaving:** a concurrently running UI Agent process
+shares this same working directory/git index. My staged changes ended up
+folded into their commit `9d32a69` ("UI Agent: consolidate hand-rolled
+sectionTitle styles onto typography.overline") rather than a separate
+Logic Agent commit — confirmed via `git log --all -- src/logic/
+personalBests.ts` that the full `newPersonalBestsFromMatch` addition is
+present there intact. My own subsequent `git commit` picked up one
+unrelated, already-correct one-line dead-code removal in
+`EventStinger.tsx` (a redundant `scale.value` assignment immediately
+overwritten on the next line) that the same concurrent process had staged
+but not yet committed — it landed under my commit `22362e5` by race
+condition, not because I edited that file. Verified the resulting code is
+still correct (`npx tsc --noEmit` clean) and `EventStinger.tsx` was not
+otherwise touched by me. Flagging here per the "don't touch this round"
+rule on that file, in case the UI/Animation Agent's own report expects
+that line still present.
