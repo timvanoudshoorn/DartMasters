@@ -458,3 +458,64 @@ existing `medal` icon.
   documented with reasoning in `docs/agent-comms/collab-pb-celebration.md`
   under "UI Agent — badge implementation" for review.
 - `npx tsc --noEmit` clean.
+
+---
+
+## Round: sectionTitle → typography.overline consolidation, part 2 (GameSetupScreen, MatchDetailScreen, PlayerEditScreen)
+
+Continuing the consolidation flagged in the previous round's candidate list
+(`GameSetupScreen.tsx`, `MatchDetailScreen.tsx`, `PlayerEditScreen.tsx` were
+named there as unfixed candidates). Stayed out of all `Stats*`/`Achievements`/
+`HeadToHead`/`Settings` screens and `src/screens/game/*` per this round's
+instructions (Animation Agent's reduced-motion migration territory this
+cycle). `npx tsc --noEmit` clean after each file and at the end.
+
+### `GameSetupScreen.tsx` — matched, fixed
+
+`styles.sectionTitle` (used for "PLAYERS" and "MATCH SETTINGS" section
+labels, lines 257/325) was hand-rolled as
+`{ ...typography.caption, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 }`
+— same look-alike drift as the other five files fixed previously (here
+based on `typography.caption` rather than a from-scratch literal, but same
+end effect: 13px caption forced uppercase with 0.6 letterspacing instead of
+the app's actual overline token). Replaced with
+`{ ...typography.overline, color: colors.textMuted }`. No margin existed
+before (layout handled by the parent `sectionHeader` row / `Card` spacing),
+so none added — matches the precedent set by `TournamentSetupScreen.tsx` in
+the prior round. `typography` was already imported in this file. Left
+`countBadge`, `guestAddText`, `botDifficultyLabel`/`botDifficultySub` alone —
+these are chip/button labels, not section headers above a content group,
+despite superficially sharing small-uppercase-bold styling with
+`sectionTitle`.
+
+### `MatchDetailScreen.tsx` — nothing matched, left alone
+
+Read the file fully. The only candidate with any property overlap is
+`winnerTag` (`fontFamily: fonts.bodyExtraBold, fontSize: 10, letterSpacing: 0.6`,
+no uppercase transform — text is already the literal string `'WINNER'`).
+This is an inline badge sitting next to a player's name inside their stat
+card, not a label sitting above a group of content — structurally the same
+kind of exception the previous round correctly left alone in
+`StatsScreen.tsx`'s `overviewLabel`. No hand-rolled section-title style
+exists anywhere else in this file (its only other headings are inline
+`playerName`/`Header` title/subtitle). No changes made.
+
+### `PlayerEditScreen.tsx` — matched, fixed
+
+`styles.label` (used for "PHOTO", "AVATAR", "COLOR" section labels above
+the photo picker, avatar grid, and color grid — lines 146/159/195) was
+`{ color: colors.textMuted, fontFamily: fonts.bodyBold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: spacing.md }`
+— textbook match for the drift pattern. Replaced with
+`{ ...typography.overline, color: colors.textMuted, marginBottom: spacing.md }`.
+Added `typography` to this file's theme import (previously only
+`colors, fonts, radius, spacing`). Confirmed `styles.label` was the only
+reference to those old literal values before removing them.
+
+### Final check
+
+`npx tsc --noEmit` run after each of the three files' edits and once more
+at the end of the round — clean throughout.
+
+Files changed: `src/screens/GameSetupScreen.tsx`,
+`src/screens/PlayerEditScreen.tsx`. `src/screens/MatchDetailScreen.tsx` was
+read but not modified (no matching role found).

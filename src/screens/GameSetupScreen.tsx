@@ -480,10 +480,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionTitle: {
-    ...typography.caption,
+    ...typography.overline,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
   },
   countBadge: {
     fontFamily: fonts.bodyExtraBold,

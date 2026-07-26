@@ -12,7 +12,7 @@ import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { PlayersStackParamList } from '../navigation/types';
 import { PlayerStorage } from '../storage/storage';
-import { colors, fonts, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { COLORS } from '../theme/colors';
 import { Player } from '../types';
 import { generateId } from '../utils/id';
@@ -234,11 +234,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   label: {
+    ...typography.overline,
     color: colors.textMuted,
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
     marginBottom: spacing.md,
   },
   photoRow: {
