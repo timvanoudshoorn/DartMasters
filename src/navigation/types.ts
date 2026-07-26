@@ -39,5 +39,6 @@ export type RootStackParamList = {
   PlayerProfile: { playerId: string };
   PlayerEdit: { playerId?: string };
   Settings: undefined;
+  BackupRestore: undefined;
   CameraScoring: { onConfirm: (darts: Dart[]) => void };
 };
