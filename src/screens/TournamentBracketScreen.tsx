@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -9,6 +9,7 @@ import { Confetti } from '../components/effects/Confetti';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { PlayerAvatar } from '../components/PlayerAvatar';
+import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { findNextPlayableMatchup } from '../logic/tournament';
 import { RootStackParamList } from '../navigation/types';
@@ -68,6 +69,24 @@ export function TournamentBracketScreen() {
     });
   };
 
+  const abandonTournament = () => {
+    Alert.alert(
+      'Abandon tournament',
+      `Abandon "${tournament.name}"? This permanently deletes the bracket. Played matches stay in your match history.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Abandon',
+          style: 'destructive',
+          onPress: async () => {
+            await TournamentStorage.remove(tournament.id);
+            navigation.popToTop();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <Screen scroll>
       <Header
@@ -78,6 +97,19 @@ export function TournamentBracketScreen() {
             : `Round ${(next?.roundIndex ?? tournament.rounds.length - 1) + 1} of ${tournament.rounds.length}`
         }
         onBack={() => navigation.popToTop()}
+        right={
+          !isComplete ? (
+            <PressableScale
+              onPress={abandonTournament}
+              haptic="light"
+              hitSlop={10}
+              scaleTo={0.9}
+              style={styles.abandonBtn}
+            >
+              <Icon name="delete" size={18} color={COLORS.textFaint} />
+            </PressableScale>
+          ) : undefined
+        }
       />
 
       <Confetti active={!!champion} />
@@ -189,6 +221,17 @@ function MatchupSide({ display, isWinner }: { display: PlayerDisplay | null; isW
 }
 
 const styles = StyleSheet.create({
+  abandonBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderTopColor: COLORS.edge,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   championWrap: {
     alignItems: 'center',
     paddingVertical: spacing.lg,

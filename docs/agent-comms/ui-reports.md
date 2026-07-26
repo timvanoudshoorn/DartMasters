@@ -519,3 +519,110 @@ at the end of the round — clean throughout.
 Files changed: `src/screens/GameSetupScreen.tsx`,
 `src/screens/PlayerEditScreen.tsx`. `src/screens/MatchDetailScreen.tsx` was
 read but not modified (no matching role found).
+
+---
+
+## Round: Tournament resume/abandon — "Continue Tournament" banner + Abandon action
+
+Head-Agent-approved scope: smaller option (a `HomeScreen` banner), not a
+dedicated tournament list screen. `npx tsc --noEmit` clean after each part
+and at the end.
+
+### Read first
+
+`src/storage/tournament.ts` (`TournamentStorage.getAll/get/save/remove`,
+`PendingTournamentMatchStorage`), the `Tournament`/`TournamentMatchup`/
+`TournamentStatus` types in `src/types/index.ts` (confirmed `status:
+'inProgress' | 'completed'` is the authoritative in-progress signal — no
+need to infer it from matchup winners), `HomeScreen.tsx`'s existing
+"Continue Match" banner in full (`continueMatchInfo` memo, its
+`useFocusEffect` data load, JSX/styles), `TournamentBracketScreen.tsx` in
+full, `src/logic/tournament.ts` (`findNextPlayableMatchup`,
+`recordMatchResult`), and `src/storage/activeMatch.ts`
+(`ActiveMatchPointer.tournamentContext`).
+
+### Banner: sourcing and rendering
+
+`HomeScreen.tsx`'s `useFocusEffect` now also calls `TournamentStorage.getAll()`
+alongside the existing player/match/active-match loads, and stores
+`activeTournament = tournaments.find(t => t.status === 'inProgress') ?? null`
+in new state. A `continueTournamentInfo` memo mirrors `continueMatchInfo`'s
+shape: it calls `findNextPlayableMatchup(activeTournament)` to get the next
+playable pairing, resolves both players' display names via
+`resolvePlayerDisplay` for the subtitle (falls back to a "Round X of Y"
+string if the next matchup isn't fully decided yet — e.g. still waiting on
+a prior round). The card itself is a byte-for-byte structural copy of the
+existing `continueCard`/`continueRail`/`continuePlayBtn` styles (same
+`Card`-adjacent look, same left accent rail, same trailing circular icon
+button — just swapped `play` for `crown` in the icon, since `crown` is
+already the app's tournament icon used on `HomeScreen`'s own nav grid tile).
+Tapping it calls `navigation.navigate('TournamentBracket', { tournamentId })`
+— confirmed against `RootStackParamList` in `src/navigation/types.ts`
+(`TournamentBracket: { tournamentId: string }`).
+
+Reworked the `MountReveal` stagger delays below the banners from the old
+`continueMatchInfo ? STAGGER_MS * n : STAGGER_MS * (n-1)` ternary chain to a
+`bannerCount = (continueMatchInfo?1:0) + (continueTournamentInfo?1:0)` plus
+`STAGGER_MS * (bannerCount + k)` per section — generalizes cleanly to
+0/1/2 banners instead of hardcoding a binary case, and produces the exact
+same delays as before when only the match banner is present (bannerCount=1
+reproduces every existing `* n`/`* (n-1)` value unchanged).
+
+### Reasoning: could both banners show at once?
+
+Concluded no, by design, and encoded it directly in the memo rather than
+just as a comment. `TournamentBracketScreen.playMatchup` hands a tournament
+matchup off to the exact same `Game` route / `ActiveMatchStorage` flow as a
+casual match (with `tournamentContext: { tournamentId, roundIndex,
+matchupIndex }` attached) — so while a tournament matchup is actually being
+played, `ActiveMatchStorage.get()` already returns it and the existing
+"Continue Match" banner already covers it (with the correct "resume this
+specific match" action). The new banner is for the *other* in-progress
+tournament state: bracket exists, `status === 'inProgress'`, but nothing is
+currently being played (idle between rounds/matches, or the app was closed
+before starting the next matchup). So `continueTournamentInfo` explicitly
+returns `null` whenever `activeMatch?.tournamentContext?.tournamentId ===
+activeTournament.id` — i.e. whenever the live match belongs to this same
+tournament, defer entirely to the match banner. The one remaining edge case
+this doesn't fully collapse: a casual (non-tournament) match is active at
+the same time an unrelated tournament sits idle — then both banners are
+legitimately relevant to two different things and both show, stacked, which
+is correct rather than a bug (they're not both about the same tournament).
+
+### Abandon action
+
+Added to `TournamentBracketScreen.tsx`'s `Header` via its existing `right`
+slot (`Header` already supported `right?: React.ReactNode`, not previously
+used by this screen) — a single icon-only `PressableScale` button styled
+identically to `HomeScreen`'s `iconBtn`/`Header`'s own `backBtn` (card
+surface, border, top edge), using the existing `delete` icon (feather
+`trash-2`). Only rendered when `!isComplete` — abandoning a finished
+tournament isn't a meaningful action (nothing left to lose), and champion
+reveal screens shouldn't grow a destructive button.
+
+Reused the exact `Alert.alert(title, message, [Cancel, destructive Confirm])`
+two-step pattern from `SettingsScreen.tsx`'s "Clear match history"/
+"Remove player" actions (`{ text: 'Cancel', style: 'cancel' }` +
+`{ text: 'Abandon', style: 'destructive', onPress: ... }`). Confirm handler
+calls `TournamentStorage.remove(tournament.id)` (previously dead code, now
+wired up) then `navigation.popToTop()` back to Home, matching the screen's
+own existing back-button behavior (`onBack={() => navigation.popToTop()}`)
+rather than a plain `goBack()`, so the user doesn't land back on a bracket
+view for a tournament that no longer exists. Alert body clarifies "Played
+matches stay in your match history" since `MatchStorage` records are
+untouched by `TournamentStorage.remove` — only the bracket/pairing record
+is deleted, not any completed `MatchRecord`s.
+
+### Files changed
+
+`src/screens/HomeScreen.tsx` (banner + data load + stagger rework),
+`src/screens/TournamentBracketScreen.tsx` (abandon action + `Header.right`).
+No changes to `src/storage/tournament.ts`, `src/types/index.ts`, or
+`src/logic/tournament.ts` — all reused as-is.
+
+### Nothing flagged as needing a Head Agent call
+
+The scope decision (banner vs. dedicated list screen) was already made by
+Head Agent going in; the "could both banners show" question is reasoned
+through above and resolved in code, not left ambiguous. `npx tsc --noEmit`
+clean after both parts and at the end.

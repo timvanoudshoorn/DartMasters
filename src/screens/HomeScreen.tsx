@@ -16,12 +16,14 @@ import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
 import { computeDailyChallengeReport, DailyChallengeReport } from '../logic/challengeProgress';
+import { findNextPlayableMatchup } from '../logic/tournament';
 import { RootStackParamList } from '../navigation/types';
 import { ActiveMatchPointer, ActiveMatchStorage } from '../storage/activeMatch';
 import { MatchStorage, PlayerStorage } from '../storage/storage';
+import { TournamentStorage } from '../storage/tournament';
 import { COLORS, FONT, RADIUS } from '../theme/colors';
 import { PRESS_SCALE, STAGGER_MS } from '../theme/motion';
-import { MatchRecord, Player } from '../types';
+import { MatchRecord, Player, Tournament } from '../types';
 import { computeHomeOverview } from '../utils/overview';
 import { resolvePlayerDisplay } from '../utils/playerDisplay';
 
@@ -30,21 +32,29 @@ export function HomeScreen() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [activeMatch, setActiveMatch] = useState<ActiveMatchPointer | null>(null);
+  const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
   const [challengeReport, setChallengeReport] = useState<DailyChallengeReport | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([PlayerStorage.getAll(), MatchStorage.getAll(), ActiveMatchStorage.get()])
-        .then(([p, m, active]) => {
+      Promise.all([
+        PlayerStorage.getAll(),
+        MatchStorage.getAll(),
+        ActiveMatchStorage.get(),
+        TournamentStorage.getAll(),
+      ])
+        .then(([p, m, active, tournaments]) => {
           setPlayers(p);
           setMatches(m);
           setActiveMatch(active);
+          setActiveTournament(tournaments.find((t) => t.status === 'inProgress') ?? null);
         })
         .catch((err) => {
           console.error('[HomeScreen] Failed to load data:', err);
           setPlayers([]);
           setMatches([]);
           setActiveMatch(null);
+          setActiveTournament(null);
         });
       computeDailyChallengeReport().then(setChallengeReport).catch((err) => {
         console.error('[HomeScreen] Failed to compute challenge report:', err);
@@ -68,6 +78,30 @@ export function HomeScreen() {
       .join(', ');
     return { modeInfo, names };
   }, [activeMatch, playerMap]);
+
+  // The bracket screen itself hands off to the normal Game/ActiveMatchStorage
+  // flow while a tournament matchup is being played, so a mid-match tournament
+  // is already covered by the "Continue Match" banner above. This banner is
+  // only for the idle-between-matches state — the tournament is in progress,
+  // but nothing is actively being played — so we hide it whenever the active
+  // match points back at this same tournament, to avoid showing two banners
+  // for one tournament at once.
+  const continueTournamentInfo = useMemo(() => {
+    if (!activeTournament) return null;
+    if (activeMatch?.tournamentContext?.tournamentId === activeTournament.id) return null;
+    const next = findNextPlayableMatchup(activeTournament);
+    const roundLabel = `Round ${(next?.roundIndex ?? activeTournament.rounds.length - 1) + 1} of ${activeTournament.rounds.length}`;
+    const nextMatchup = next ? activeTournament.rounds[next.roundIndex].matchups[next.matchupIndex] : null;
+    const names =
+      nextMatchup?.playerAId && nextMatchup?.playerBId
+        ? `${resolvePlayerDisplay(nextMatchup.playerAId, playerMap, activeTournament.guestPlayers).name} vs ${
+            resolvePlayerDisplay(nextMatchup.playerBId, playerMap, activeTournament.guestPlayers).name
+          }`
+        : roundLabel;
+    return { tournament: activeTournament, names };
+  }, [activeTournament, activeMatch, playerMap]);
+
+  const bannerCount = (continueMatchInfo ? 1 : 0) + (continueTournamentInfo ? 1 : 0);
 
   const challengePercent = challengeReport
     ? Math.round((challengeReport.completedCount / Math.max(1, challengeReport.totalCount)) * 100)
@@ -149,8 +183,34 @@ export function HomeScreen() {
           </MountReveal>
         )}
 
+        {/* Continue tournament */}
+        {continueTournamentInfo && (
+          <MountReveal delay={STAGGER_MS * (continueMatchInfo ? 2 : 1)}>
+            <PressableScale
+              scaleTo={PRESS_SCALE.row}
+              haptic="medium"
+              style={styles.continueCard}
+              onPress={() =>
+                navigation.navigate('TournamentBracket', { tournamentId: continueTournamentInfo.tournament.id })
+              }
+            >
+              <View style={styles.continueRail} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.continueLabel}>CONTINUE TOURNAMENT</Text>
+                <Text style={styles.continueTitle}>{continueTournamentInfo.tournament.name}</Text>
+                <Text style={styles.continueSubtitle} numberOfLines={1}>
+                  {continueTournamentInfo.names}
+                </Text>
+              </View>
+              <View style={styles.continuePlayBtn}>
+                <Icon name="crown" size={16} color={COLORS.text} />
+              </View>
+            </PressableScale>
+          </MountReveal>
+        )}
+
         {/* Stats band */}
-        <MountReveal delay={continueMatchInfo ? STAGGER_MS * 2 : STAGGER_MS} style={styles.statsBand}>
+        <MountReveal delay={STAGGER_MS * (bannerCount + 1)} style={styles.statsBand}>
           <View style={styles.statsCell}>
             <CountUp value={overview.matches} delay={250} duration={600} style={styles.statsValue} />
             <Text style={styles.statsLabel}>MATCHES</Text>
@@ -174,7 +234,7 @@ export function HomeScreen() {
         </MountReveal>
 
         {/* Challenges */}
-        <MountReveal delay={continueMatchInfo ? STAGGER_MS * 3 : STAGGER_MS * 2}>
+        <MountReveal delay={STAGGER_MS * (bannerCount + 2)}>
           <PressableScale
             scaleTo={PRESS_SCALE.row}
             haptic="light"
@@ -198,7 +258,7 @@ export function HomeScreen() {
         </MountReveal>
 
         {/* New Match CTA */}
-        <MountReveal delay={continueMatchInfo ? STAGGER_MS * 4 : STAGGER_MS * 3}>
+        <MountReveal delay={STAGGER_MS * (bannerCount + 3)}>
           <PressableScale
             scaleTo={PRESS_SCALE.button}
             haptic="medium"
@@ -223,7 +283,7 @@ export function HomeScreen() {
 
         {/* Nav grid */}
         <MountReveal
-          delay={continueMatchInfo ? STAGGER_MS * 5 : STAGGER_MS * 4}
+          delay={STAGGER_MS * (bannerCount + 4)}
           style={styles.navGrid}
         >
           <NavTile
