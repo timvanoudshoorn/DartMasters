@@ -22,6 +22,7 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { CountUp } from '../components/primitives/CountUp';
 import { Screen } from '../components/Screen';
 import { getGameModeInfo } from '../data/gameModes';
+import { AchievementStatus, newAchievementsFromMatch } from '../logic/achievements';
 import { newPersonalBestsFromMatch, PersonalBestId, PersonalBestRecord } from '../logic/personalBests';
 import { recordMatchResult } from '../logic/tournament';
 import { RematchConfig, RootStackParamList } from '../navigation/types';
@@ -111,6 +112,12 @@ export function GameSummaryScreen() {
   // the full MatchStorage history, already loaded below for this screen's
   // own lookup. Empty array (the common case) renders nothing extra.
   const [newBests, setNewBests] = useState<PersonalBestRecord[]>([]);
+  // Achievements newly unlocked *by this match* for the winner — same source
+  // data and same winner-only scoping as `newBests` above (see
+  // docs/agent-comms/collab-achievement-celebration.md). Rendered alongside
+  // the PB chips in the same row/section per the Head Agent's "one combined
+  // celebration pass" decision, not as a separate section.
+  const [newAchievements, setNewAchievements] = useState<AchievementStatus[]>([]);
   const [tournamentResult, setTournamentResult] = useState<{
     context: TournamentMatchContext;
     tournament: Tournament;
@@ -127,12 +134,16 @@ export function GameSummaryScreen() {
         setNewBests(
           found?.winnerId ? newPersonalBestsFromMatch(matches, found.winnerId, found.id) : []
         );
+        setNewAchievements(
+          found?.winnerId ? newAchievementsFromMatch(matches, found.winnerId, found.id) : []
+        );
       })
       .catch((err) => {
         console.error('[GameSummaryScreen] Failed to load data:', err);
         setMatch(null);
         setPlayers({});
         setNewBests([]);
+        setNewAchievements([]);
       });
   }, [route.params.matchId]);
 
@@ -290,6 +301,13 @@ export function GameSummaryScreen() {
         const extraNewBests = isWinner
           ? newBests.filter((nb) => nb.id === 'bestVisit' || nb.id === 'longestWinStreak')
           : [];
+        // Achievements never correspond to an existing stat cell (they're
+        // accomplishments like "throw a 180", not numeric stats already on
+        // the grid), so every one of them renders as a standalone chip —
+        // same treatment as bestVisit/longestWinStreak above — placed in the
+        // same row so a match with both a new PB and a new achievement reads
+        // as one combined celebration, not two separate ones.
+        const extraAchievements = isWinner ? newAchievements : [];
         return (
           <Animated.View key={id} entering={FadeInDown.delay(delay).springify().damping(16)}>
             <Card
@@ -306,7 +324,7 @@ export function GameSummaryScreen() {
                 )}
               </View>
 
-              {extraNewBests.length > 0 && (
+              {(extraNewBests.length > 0 || extraAchievements.length > 0) && (
                 <View style={styles.extraBestsRow}>
                   {extraNewBests.map((nb) => (
                     <Animated.View
@@ -321,6 +339,19 @@ export function GameSummaryScreen() {
                       <Text style={styles.extraBestText}>
                         NEW BEST · {nb.label} {nb.formatted}
                       </Text>
+                    </Animated.View>
+                  ))}
+                  {extraAchievements.map((ach) => (
+                    <Animated.View
+                      key={ach.definition.id}
+                      entering={ZoomIn.delay(delay + R.newBestPop)
+                        .springify()
+                        .damping(SPRING_BOUNCY.damping)
+                        .stiffness(SPRING_BOUNCY.stiffness)}
+                      style={styles.extraBestChip}
+                    >
+                      <Icon name={ach.definition.icon} size={11} color={COLORS.positive} />
+                      <Text style={styles.extraBestText}>UNLOCKED · {ach.definition.title}</Text>
                     </Animated.View>
                   ))}
                 </View>

@@ -626,3 +626,66 @@ The scope decision (banner vs. dedicated list screen) was already made by
 Head Agent going in; the "could both banners show" question is reasoned
 through above and resolved in code, not left ambiguous. `npx tsc --noEmit`
 clean after both parts and at the end.
+
+## Round: CheckoutTrainer player picker + achievement-unlock chips (Stage 2)
+
+### Task 1 — CheckoutTrainerScreen real player picker
+
+Replaced the placeholder "silently default to oldest-created player" logic
+in `src/screens/CheckoutTrainerScreen.tsx` with a real picker. Reused
+`PlayerFilterChips` (the existing single-select "which player's data" chip
+row, already used by `AchievementsScreen`/`StatsTrendsScreen`) rather than
+building anything new — this screen's need (pick one saved player to
+practice/track streaks as) is the same shape as those screens' "view whose
+stats" picker. Chip row only renders when there are 2+ players (a single
+player has nothing to pick between); the oldest-created player is still
+used as the initial default selection when the screen first loads, but it's
+now just a starting selection, not a silent permanent one — the user can
+change it.
+
+`CheckoutTrainerStorage.getBest(activePlayerId)` is now (re)loaded in a
+`useEffect` keyed on `activePlayerId`, so switching players reloads that
+player's best streak; the in-progress `streak` also resets on switch since
+an in-flight streak belongs to whoever was throwing, not the newly selected
+player. `setBest` calls (on new records) already gated on `activePlayerId`
+being non-null were left as-is.
+
+**Zero-players case:** renders `EmptyState` (icon `star`, "No players yet" /
+"Add a player profile to track your checkout streak") in place of the whole
+trainer UI, matching `AchievementsScreen`'s zero-players treatment exactly.
+
+Files changed: `src/screens/CheckoutTrainerScreen.tsx` only. `npx tsc
+--noEmit` clean.
+
+### Task 2 — Achievement-unlock chips on GameSummaryScreen (Stage 2 of 3)
+
+Wired `newAchievementsFromMatch(matches, winnerId, matchId)` (Logic Agent's
+Stage 1, `src/logic/achievements.ts`) into `GameSummaryScreen.tsx` alongside
+the already-shipped `newBests`/`newPersonalBestsFromMatch` computation —
+same data source (`MatchStorage.getAll()`), same winner-only scoping, same
+draw-safety (`found?.winnerId ? ... : []`). New state `newAchievements:
+AchievementStatus[]`.
+
+Since achievements never correspond to an existing numeric stat cell,
+every unlocked achievement renders as a standalone chip — exactly the same
+`extraBestChip` component/style already used for `bestVisit`/
+`longestWinStreak`, just with the achievement's own `definition.icon`/
+`definition.title` in place of a PB's label/value, reading "UNLOCKED ·
+<title>" instead of "NEW BEST · <label> <value>". Full detail appended to
+`docs/agent-comms/collab-achievement-celebration.md`.
+
+**Combined-pass confirmation:** `extraNewBests` and the new
+`extraAchievements` render inside the exact same `styles.extraBestsRow`
+`View` — one row, not two sections — so a match that both sets a PB and
+unlocks an achievement shows all its chips together automatically, no
+special-case merge logic needed, satisfying the Head Agent's "one combined
+celebration pass" decision as-is.
+
+**Empty-case confirmed:** with `newAchievements = []` (the common case),
+`extraAchievements` is `[]` for every player card and the row's render
+condition (`extraNewBests.length > 0 || extraAchievements.length > 0`)
+is unaffected when both are empty — identical to pre-change output.
+
+No haptic/motion added here — left for the Animation Agent's Stage 3, same
+as the PB work. Files changed: `src/screens/GameSummaryScreen.tsx` only.
+`npx tsc --noEmit` clean.

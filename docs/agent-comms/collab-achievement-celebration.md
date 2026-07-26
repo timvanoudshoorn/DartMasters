@@ -91,7 +91,65 @@ all, it only computes achievement-side unlocks.
 
 ## UI Agent — badge implementation (fill in below)
 
-*(pending — do not start until the Logic section above is filled in)*
+**File:** `src/screens/GameSummaryScreen.tsx` only (no other files touched).
+
+**Data wiring:** added `newAchievements: AchievementStatus[]` state,
+populated in the screen's existing data-loading effect right next to
+`newBests`: `found?.winnerId ? newAchievementsFromMatch(matches,
+found.winnerId, found.id) : []`. Same `matches` array, same
+`found.winnerId`/`found.id` already resolved for the PB call one line
+above — no new storage call, no new load pattern. Losers never get
+achievement chips (only computed for `match.winnerId`) and a genuine tie
+(`winnerId` null) produces `[]`, same as the PB path.
+
+**Rendering — every unlocked achievement is a standalone chip:**
+achievements never correspond to one of this screen's existing numeric
+stat cells (they're accomplishments like "throw a 180" or "win 10
+matches," not stats already on the grid), so unlike the PB work there's no
+cell-badging step here at all — every entry in `newAchievements` renders
+as a chip, always, the same way the PB work already handles its two
+no-matching-cell categories (`bestVisit`/`longestWinStreak`).
+
+**Reused the exact same chip:** the achievement chips are rendered with
+the identical `styles.extraBestChip`/`styles.extraBestText` component
+already built for the PB "standalone chip" categories — no new chip style
+was created. Only the content differs: `Icon name={ach.definition.icon}`
+in place of the fixed `"medal"` icon, and text reads `UNLOCKED ·
+{ach.definition.title}` instead of `NEW BEST · {nb.label} {nb.formatted}`
+(achievements have no numeric value worth surfacing on the badge itself,
+per the Logic section above, so title alone is the copy).
+
+**Combined-pass placement — satisfies the "one celebration" decision
+directly:** `extraNewBests.map(...)` and the new `extraAchievements.map(...)`
+sit inside the exact same `styles.extraBestsRow` `<View>`, gated by a single
+combined condition (`extraNewBests.length > 0 || extraAchievements.length >
+0`). A match that sets both a new PB and unlocks an achievement therefore
+renders all its chips together in one row automatically — there is no
+special-case merge code, because both arrays were always going to share
+one container once achievements were added here. This is what the Head
+Agent's "one combined celebration pass" decision described: reuse the same
+badge slot/mechanism rather than adding a second visual section.
+
+**Empty-case confirmed:** `newAchievements = []` (the default/common case)
+makes `extraAchievements = []` for every player card; combined with
+`extraNewBests = []` the row's render condition is false and nothing extra
+renders — output identical to before this change. Verified via `npx tsc
+--noEmit` (clean) and a read-through of the diff.
+
+**Explicitly out of scope (left for Animation Agent, Stage 3):** no new
+haptic/sound and no dedicated entrance was added for the achievement
+chips specifically — they ride the same `ZoomIn.delay(delay +
+R.newBestPop)...` entrance already written for the PB standalone chips
+(unchanged), which itself still has no haptic of its own; the existing
+single `haptic.rigid()` accent (gated on `newBests.length > 0` only) does
+**not** yet also fire for achievement-only matches — that's exactly the
+Head Agent's "one combined haptic accent" requirement, and it's Animation's
+job next round to extend that gate to `newBests.length > 0 ||
+newAchievements.length > 0` (or equivalent) so an achievement-only win
+still gets its one accent tick. Flagging this explicitly so Stage 3 doesn't
+miss it: as shipped by this stage, an achievement unlock with zero new PBs
+currently produces a silent chip pop with no haptic at all, since the
+existing haptic effect's dependency/gate only checks `newBests.length`.
 
 ---
 
