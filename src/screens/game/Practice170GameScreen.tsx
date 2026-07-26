@@ -179,6 +179,14 @@ export function Practice170GameScreen({ config }: Props) {
       playerIds: config.playerIds,
       winnerId: finalState.matchWinnerId,
       results,
+      // Guest identity maps — every other mode records these; without them a
+      // guest's name/color render as the "Player" fallback in match history.
+      guestNames: config.guestPlayers
+        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.name]))
+        : undefined,
+      guestColors: config.guestPlayers
+        ? Object.fromEntries(Object.entries(config.guestPlayers).map(([id, g]) => [id, g.color]))
+        : undefined,
     };
     playSfx('win');
     MatchStorage.save(record)
@@ -248,9 +256,14 @@ export function Practice170GameScreen({ config }: Props) {
       playSfx('bust');
       setBustFlash(true);
       triggerShake();
-      scheduleTimeout(() => setBustFlash(false), 700);
       setVisitDarts(newDarts);
-      scheduleTimeout(() => finishVisit(newDarts, state.sharedRemaining, true, false), 550);
+      // One timeout for both: previously the visit finished at 550ms while
+      // the flash cleared at 700ms, so the turn advanced with the bust
+      // visuals still covering the next player's ring for 150ms.
+      scheduleTimeout(() => {
+        setBustFlash(false);
+        finishVisit(newDarts, state.sharedRemaining, true, false);
+      }, 700);
       return;
     }
     if (outcome.checkout) {
@@ -306,13 +319,15 @@ export function Practice170GameScreen({ config }: Props) {
       </View>
 
       <View style={styles.inputCard}>
+        {/* Disabled during the bust window — the scheduled finishVisit closure
+            captured pre-undo state and would clobber an undo made here. */}
         <PressableScale
           onPress={undo}
-          disabled={history.current.length === 0}
+          disabled={history.current.length === 0 || bustFlash}
           haptic="tick"
           scaleTo={0.88}
           hitSlop={8}
-          style={[styles.undoBtn, history.current.length === 0 && styles.disabled]}
+          style={[styles.undoBtn, (history.current.length === 0 || bustFlash) && styles.disabled]}
         >
           <Icon name="undo" size={16} color={colors.textMuted} />
         </PressableScale>

@@ -151,15 +151,28 @@ export function CricketGameScreen({ config }: Props) {
         : undefined,
     };
     playSfx('win');
-    MatchStorage.save(record).then(() => navigation.replace('GameSummary', { matchId: record.id }));
+    MatchStorage.save(record)
+      .then(() => navigation.replace('GameSummary', { matchId: record.id }))
+      .catch((err) => {
+        console.error('[CricketGameScreen] Failed to save match:', err);
+        navigation.replace('GameSummary', { matchId: record.id });
+      });
   };
 
-  const throwDart = (target: number | null, mult: Multiplier) => {
-    const before = cricketPlayers.find((p) => p.playerId === activePlayerId)!;
-    const beforeScore = before.score;
+  const throwDart = (target: number | null, rawMult: Multiplier) => {
+    // A triple bull doesn't exist on a real board — cap bull hits at double.
+    // (The bot already caps this in decideCricketThrow; human input didn't.)
+    const mult = target === 25 ? (Math.min(rawMult, 2) as Multiplier) : rawMult;
+    // Points this dart put on the table, whoever received them. In standard
+    // cricket only the thrower's score can change, so this equals their own
+    // gain; in cut-throat the thrower's score never changes (points land on
+    // open opponents), so measuring only the thrower's delta made every
+    // cut-throat dart read as scoreless — silencing the scored sound and
+    // zeroing totalScored/highest-turn stats for entire cut-throat matches.
+    const tableBefore = cricketPlayers.reduce((s, p) => s + p.score, 0);
     const updated = applyCricketThrow(cricketPlayers, activePlayerId, target, mult, config.cutThroat);
-    const after = updated.find((p) => p.playerId === activePlayerId)!;
-    const gained = after.score - beforeScore;
+    const tableAfter = updated.reduce((s, p) => s + p.score, 0);
+    const gained = tableAfter - tableBefore;
 
     if (target === null) {
       playSfx('miss');

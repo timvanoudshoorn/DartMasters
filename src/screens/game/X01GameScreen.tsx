@@ -635,13 +635,16 @@ export function X01GameScreen({ config }: Props) {
             TO FINISH  <Text style={styles.toFinishValue}>{liveRemaining}</Text>
           </Text>
           <View style={styles.deckHeaderBtns}>
+            {/* Undo must stay dead during the bust window: the scheduled
+                finishVisit closure captured pre-undo state, so an undo here
+                would be silently clobbered when that timeout fires. */}
             <PressableScale
               onPress={undo}
-              disabled={history.current.length === 0}
+              disabled={history.current.length === 0 || bustFlash}
               haptic="tick"
               scaleTo={0.88}
               hitSlop={8}
-              style={[styles.cameraBtn, history.current.length === 0 && styles.disabled]}
+              style={[styles.cameraBtn, (history.current.length === 0 || bustFlash) && styles.disabled]}
             >
               <Icon name="undo" size={16} color={COLORS.textSub} />
             </PressableScale>
