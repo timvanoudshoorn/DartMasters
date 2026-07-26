@@ -126,3 +126,62 @@ math is in `collab-pb-celebration.md`.
 (Logic's diffing function, UI's badge/chip placement, this motion/haptic
 pass). Ready for QA/Integration Agent's cross-check per that file's
 sequencing note (step 4).
+
+## Reduce Motion gating — remaining 5 screens (2026-07-27)
+
+**Summary:** Closes out the 5 screens flagged as not-yet-migrated in the
+previous Reduce Motion round above (`StatsScreen.tsx`,
+`StatsTrendsScreen.tsx`, `AchievementsScreen.tsx`, `HeadToHeadScreen.tsx`,
+`SettingsScreen.tsx`). Same mechanical swap as the earlier 16-screen pass:
+raw `STAGGER_MS` arithmetic → `staggerDelay()`/`reducedMs()`. Each file
+committed individually; `npx tsc --noEmit` stayed clean after every edit.
+
+**File-by-file:**
+- **`src/screens/StatsScreen.tsx`** — 1 call site: match-history row
+  `FadeInDown.delay(Math.min(i, 8) * STAGGER_MS)` → `staggerDelay(Math.min(i, 8))`.
+  Import swapped from `STAGGER_MS` to `staggerDelay`. Faithful 1:1 — same
+  ms output when the flag is off, collapses to 0 when on.
+- **`src/screens/StatsTrendsScreen.tsx`** — 2 call sites: the `.map()`
+  loop over personal-best pills (`i * STAGGER_MS` → `staggerDelay(i)`),
+  and the fixed non-looped stats-grid delay (`STAGGER_MS` →
+  `reducedMs(STAGGER_MS)`, following the same convention used in
+  `Bobs27GameScreen`/`HalveItGameScreen`/`ShanghaiGameScreen` for
+  sequential non-looped sections). No behavior change when off.
+- **`src/screens/AchievementsScreen.tsx`** — 3 call sites: badge card
+  `FadeInDown` (`index * STAGGER_MS` → `staggerDelay(index)`), the
+  earned-checkmark `ZoomIn` (`index * STAGGER_MS + 150` →
+  `staggerDelay(index) + reducedMs(150)`), and the progress-fill sweep
+  delay prop (same pattern) — matches the identical
+  `ChallengeCard`/`ProgressFill` precedent in `ChallengesScreen.tsx`
+  exactly. No behavior change when off.
+- **`src/screens/HeadToHeadScreen.tsx`** — 1 call site: shared
+  match-history row (`Math.min(i, 8) * STAGGER_MS` →
+  `staggerDelay(Math.min(i, 8))`), same shape as `StatsScreen`'s fix.
+  Import swapped from `STAGGER_MS` to `staggerDelay`. No behavior change
+  when off.
+- **`src/screens/SettingsScreen.tsx`** — 3 call sites: the three
+  sequential (non-looped) card entrances — `FadeInDown.duration(260)`
+  (no delay, untouched), `FadeInDown.delay(STAGGER_MS)` →
+  `FadeInDown.delay(reducedMs(STAGGER_MS))`, and
+  `FadeInDown.delay(STAGGER_MS * 2)` →
+  `FadeInDown.delay(reducedMs(STAGGER_MS * 2))`. Closes the ironic gap
+  where the screen owning the "Reduce motion" toggle didn't itself
+  respect it. No behavior change when off.
+
+**Celebratory-effect check (all 5 files):** confirmed by full read, not
+assumed — none of `Confetti`, `ScreenFlash`, `useShake`, or
+`EventStinger` appear anywhere in these 5 files. They're all
+data/list/settings screens, not win-ceremony screens, so there was
+nothing else to gate.
+
+**Faithful-swap confirmation:** every edit is a pure delay-computation
+substitution — no spacing, layout, duration, spring config, or logic
+touched. With the "Reduce motion" flag off (default), `staggerDelay(i)`
+and `reducedMs(x)` return exactly `i * STAGGER_MS` / `x`, so visual output
+is byte-for-byte identical to before this change; with the flag on, both
+collapse toward 0 as designed.
+
+**Status:** all 21 screens flagged across both Reduce Motion rounds (16 +
+these 5) are now migrated. No remaining `i * STAGGER_MS`-style call sites
+are known to me outside game-logic-owned files I was told to stay out of
+this round.
