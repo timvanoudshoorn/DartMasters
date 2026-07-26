@@ -1,6 +1,6 @@
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Button } from '../components/Button';
@@ -25,20 +25,22 @@ export function MatchDetailScreen() {
   const [match, setMatch] = useState<MatchRecord | null>(null);
   const [players, setPlayers] = useState<Record<string, Player>>({});
 
-  useEffect(() => {
-    Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])
-      .then(([matches, all]) => {
-        setMatch(matches.find((m) => m.id === route.params.matchId) ?? null);
-        const map: Record<string, Player> = {};
-        all.forEach((p) => (map[p.id] = p));
-        setPlayers(map);
-      })
-      .catch((err) => {
-        console.error('[MatchDetailScreen] Failed to load data:', err);
-        setMatch(null);
-        setPlayers({});
-      });
-  }, [route.params.matchId]);
+  useFocusEffect(
+    useCallback(() => {
+      Promise.all([MatchStorage.getAll(), PlayerStorage.getAll()])
+        .then(([matches, all]) => {
+          setMatch(matches.find((m) => m.id === route.params.matchId) ?? null);
+          const map: Record<string, Player> = {};
+          all.forEach((p) => (map[p.id] = p));
+          setPlayers(map);
+        })
+        .catch((err) => {
+          console.error('[MatchDetailScreen] Failed to load data:', err);
+          setMatch(null);
+          setPlayers({});
+        });
+    }, [route.params.matchId])
+  );
 
   if (!match) return <Screen />;
 
