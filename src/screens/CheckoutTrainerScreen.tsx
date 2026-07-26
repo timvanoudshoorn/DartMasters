@@ -9,9 +9,8 @@ import { DartPad } from '../components/DartPad';
 import { DartSlots } from '../components/DartSlots';
 import { ScreenFlash } from '../components/effects/ScreenFlash';
 import { useShake } from '../components/effects/useShake';
-import { Icon } from '../components/icons/Icon';
+import { GameHud } from '../components/GameHud';
 import { CountUp } from '../components/primitives/CountUp';
-import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { getCheckoutSuggestion } from '../data/checkoutTable';
 import { evaluateDart } from '../logic/x01';
@@ -152,22 +151,15 @@ export function CheckoutTrainerScreen() {
       <ScreenFlash trigger={result === 'success'} color={colors.success} />
       <ScreenFlash trigger={result === 'fail'} color={colors.neonRed} />
 
-      <View style={styles.topBar}>
-        <PressableScale
-          onPress={() => navigation.goBack()}
-          hitSlop={10}
-          haptic="light"
-          scaleTo={0.88}
-          style={styles.exitBtn}
-        >
-          <Icon name="back" size={20} color={colors.textPrimary} />
-        </PressableScale>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>CHECKOUT TRAINER</Text>
-          <Text style={styles.topBarSubtitle}>Work out the finish</Text>
-        </View>
-        <View style={styles.exitBtn} />
-      </View>
+      <GameHud
+        onExit={() => navigation.goBack()}
+        centerContent={
+          <View style={{ alignItems: 'center' }}>
+            <Text style={styles.title}>CHECKOUT TRAINER</Text>
+            <Text style={styles.topBarSubtitle}>Work out the finish</Text>
+          </View>
+        }
+      />
 
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
@@ -228,20 +220,6 @@ export function CheckoutTrainerScreen() {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  exitBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCardAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   title: { fontFamily: fonts.bodyExtraBold, fontSize: 12, color: colors.textSecondary, letterSpacing: 1.5 },
   topBarSubtitle: {
     fontFamily: fonts.bodyMedium,
