@@ -19,8 +19,8 @@ const PALETTE = [
   COLORS.accentHot,
   '#F0A030',
   '#C1A536',
-  '#F4F1EE',
-  '#8E2716',
+  COLORS.text,
+  COLORS.accentDeep,
 ];
 
 interface PieceConfig {

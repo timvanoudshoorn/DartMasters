@@ -963,3 +963,236 @@ untouched).
 
 Both Round 6 fixes verified correct by full code trace, not just accepted
 from prior reports. No bugs found, nothing fixed, nothing flagged.
+
+## Round: Second whole-app regression sweep (different angles than the first)
+
+Read `build-log.md` and `head-log.md` in full first. This pass deliberately
+covered ground the first whole-app sweep didn't: the three player-picker
+screens as a set, tournament/celebration interaction, CheckoutTrainer
+backup+picker interaction, and a fresh repo-wide `Pressable`/hex sanity
+grep. `npx tsc --noEmit` clean before and after.
+
+### 1. The three player-picker screens together — PASS (1 fix)
+
+Compared `CheckoutTrainerScreen.tsx`, `ChallengesScreen.tsx`,
+`AchievementsScreen.tsx`, `StatsTrendsScreen.tsx` (all `PlayerFilterChips`)
+against `HeadToHeadScreen.tsx` (`PlayerPairChips`, a deliberately different
+two-slot contract, documented in the component's own JSDoc as not
+unifiable with single-select — correctly not expected to match).
+
+- **Default-selection convention — consistent across all 4 single-select
+  screens:** every one resolves to `players.slice().sort((a, b) =>
+  a.createdAt - b.createdAt)[0].id` when nothing is currently selected
+  (`CheckoutTrainerScreen.tsx:62`, `ChallengesScreen.tsx:40`,
+  `AchievementsScreen.tsx:38`, `StatsTrendsScreen.tsx:34` — the last one
+  written as `p[0]?.id` since `PlayerStorage.getAll()` already returns
+  creation order, same effective result). All 4 also preserve the current
+  selection across a reload if it still exists (`current && p.some(...)`),
+  falling back to oldest-created only if the previous selection vanished
+  (deleted player) or none was ever made.
+- **Chip visibility gate — consistent:** all 4 only render the chip row
+  when `players.length > 1` (`CheckoutTrainerScreen.tsx:200`,
+  `ChallengesScreen.tsx:75`, `AchievementsScreen.tsx:73`,
+  `StatsTrendsScreen.tsx:81`) — a single-player device never sees a
+  pointless one-chip picker.
+- **Zero-player edge case — was inconsistent, fixed.** `AchievementsScreen`/
+  `StatsTrendsScreen`/`CheckoutTrainerScreen` all fully replace their
+  player-scoped content with `EmptyState` when `players.length === 0`.
+  `ChallengesScreen.tsx` did not: it left the `TabBar` and the full
+  challenge list visible (all cards rendering 0/target via
+  `computeDailyChallengeReport`'s own `buildEmpty` fallback,
+  `challengeProgress.ts:41-51` — not a crash, since that path is
+  intentionally safe) with only a small inline hint text
+  (`styles.emptyHint`) above it. This read exactly like leftover state
+  from before the screen had a real per-player picker (the hint text
+  predates the `PlayerFilterChips` conversion and was never reconciled with
+  the sibling screens' EmptyState convention). **Fixed:** `ChallengesScreen.tsx`
+  now renders `EmptyState` (same `icon="star"` treatment as
+  `AchievementsScreen.tsx`/`CheckoutTrainerScreen.tsx`) in place of the
+  chip row + tab bar + challenge list when there are no players, and the
+  now-dead `emptyHint` style was removed. Verified `npx tsc --noEmit` clean
+  after.
+- **One-player case** — all 4 correctly show no chips and just operate on
+  the sole player; no dead state found.
+- **Minor, non-blocking note (not fixed):** `CheckoutTrainerScreen.tsx`
+  loads its player list in a plain `useEffect(() => {...}, [])`
+  (line 57-68), while the other three use `useFocusEffect`. This is a real
+  inconsistency in pattern, but traced whether it's reachable as a bug:
+  `CheckoutTrainerScreen` is only ever reached via a fresh
+  `navigation.navigate('CheckoutTrainer')` push from `HomeScreen.tsx:318`
+  (confirmed via repo-wide grep — the only call site), and every exit path
+  from the screen (`GameHud`'s `onExit`, the "Done" button) is a
+  `navigation.goBack()` with no forward navigation from within the screen
+  itself — so the screen can never be sitting stale-but-mounted underneath
+  another screen the way a tab-persisted screen could. Every time a user
+  reaches it, it's a fresh mount, so the plain `useEffect` behaves
+  identically to `useFocusEffect` in practice today. Flagging only because
+  it's a latent inconsistency that would become a real bug if this
+  screen's navigation shape ever changes (e.g. a future tab bar) — not
+  worth changing now for a difference with no observable effect.
+- **HeadToHeadScreen's `PlayerPairChips`** — re-verified the oldest-out
+  eviction logic already covered by a prior QA round
+  (`HeadToHeadScreen.tsx:48-54`) still matches current code, unchanged
+  since.
+
+### 2. Tournament + celebration interaction — PASS
+
+- **Rematch is correctly suppressed for every tournament match, including
+  the bracket-deciding one:** `GameSummaryScreen.tsx:427-457` — the whole
+  action-button block is `tournamentResult ? <Button VIEW CHAMPION/BACK TO
+  BRACKET> : <BACK TO MENU + PLAY AGAIN>`. `tournamentResult` is set
+  whenever `PendingTournamentMatchStorage` had a pointer for this match
+  (`GameSummaryScreen.tsx:172-200`), which is true for every tournament
+  matchup, not just non-deciding ones — so "PLAY AGAIN" structurally cannot
+  render for a tournament match at all, deciding or not. The only branch
+  distinction for the deciding match is the button's *label*
+  (`tournamentResult.tournament.status === 'completed' ? 'VIEW CHAMPION' :
+  'BACK TO BRACKET'`, line 430) — both label variants perform the exact
+  same `navigation.replace('TournamentBracket', ...)` action.
+- **The PB/achievement celebration path is fully independent of the
+  tournament path and fires normally for a real (non-guest) tournament
+  winner, including the deciding match:** confirmed the two `useEffect`s
+  (data-load at 126-162, tournament-record at 172-200) share no state and
+  the celebration data-load effect has no branch on `tournamentResult` at
+  all — a tournament match's winner gets the same `newBests`/
+  `newAchievements` computation as a casual match's winner.
+- **Guest-celebration guard confirmed to cover tournament guests/bots
+  too, traced through the actual data flow (not assumed from the casual
+  case a prior QA round already verified):** `TournamentBracketScreen.tsx:60-64`
+  builds the per-matchup `GameConfig` as `{ ...tournament.formatConfig,
+  playerIds: [matchup.playerAId, matchup.playerBId], guestPlayers:
+  tournament.guestPlayers }` — the same full tournament-level
+  `guestPlayers` map (populated once at tournament creation via
+  `TournamentSetupScreen.tsx`'s `addGuest`, same `guest-${generateId()}`/
+  `bot-${generateId()}` id scheme as casual `GameSetupScreen.tsx`) is
+  passed for *every* matchup. Every per-mode game screen's
+  `finalizeMatch`-equivalent spreads `...guestIdentityMaps(config)`
+  (already verified repo-wide in a prior QA round) onto the resulting
+  `MatchRecord`, so a tournament match's `guestNames` is populated
+  identically to a casual match's. Since `guestNames` is a superset (it
+  includes every tournament guest, not just the two in this particular
+  matchup) rather than a per-matchup-scoped map, there's no risk of a
+  false negative either — a guest winner of a tournament matchup is always
+  present as a key in `match.guestNames`, so `GameSummaryScreen.tsx:143`'s
+  `winnerIsGuest` check correctly suppresses the celebration for a
+  guest/bot winning a tournament match exactly as it does for casual play.
+- **`recordMatchResult`/`isTournamentComplete` (`src/logic/tournament.ts:138-183`)
+  re-traced fresh:** correctly sets `status: 'completed'` and
+  `winnerId`/`completedAt` only when the final round's sole matchup gets a
+  winner; guarded against re-deciding an already-decided matchup or a
+  winner not actually in the matchup (lines 167-168) — defensive, not
+  currently reachable through the app's own flows, consistent with the
+  existing in-code comment.
+- **`TournamentBracketScreen.tsx`'s champion state** (`isComplete`/
+  `champion`, lines 53-54) renders correctly when reached via "VIEW
+  CHAMPION": its own `Confetti` fires a second time on this screen (the
+  first already played on `GameSummaryScreen`) — a deliberate double beat
+  for winning the whole bracket, not a bug; the Abandon action
+  (`Header`'s `right` slot) is correctly hidden once complete
+  (`!isComplete ? <PressableScale onPress={abandonTournament}> :
+  undefined`, line 101) since there's nothing left to abandon.
+
+### 3. CheckoutTrainerStorage backup/restore + per-player picker together — PASS
+
+- **No in-memory staleness possible, traced through both the storage layer
+  and the screen's navigation lifecycle:** `CheckoutTrainerStorage.getBest`
+  (`storage.ts:154-166`) has no cache — it's `readJson` from AsyncStorage
+  on every single call, so there is no module-level or component-level
+  value that an `importAllData()` call could leave stale in memory.
+  `CheckoutTrainerScreen.tsx`'s `activePlayerId` effect (lines 70-84) calls
+  `getBest` fresh every time it runs, and that effect (plus the
+  player-list load effect, lines 57-68) only ever runs on mount — and per
+  the navigation trace in section 1 above, this screen is unreachable
+  except via a brand-new mount from `HomeScreen`. So the realistic
+  scenario the task describes — user imports a backup while
+  `CheckoutTrainerScreen` isn't mounted, then opens it afterward — always
+  produces a fresh `PlayerStorage.getAll()` + fresh `getBest(playerId)`
+  read against the just-restored AsyncStorage blob. No stale value can
+  survive an import under the app's actual navigation topology.
+- **The restored value itself round-trips correctly** (re-confirmed,
+  matches a prior QA round's trace): `getAllBest()`/`setAllBest()`
+  (`storage.ts:177-188`) preserve the `LEGACY_FALLBACK_FIELD` entry
+  through export→JSON→import, and `getBest`'s fallback chain
+  (`playerId in raw` → `LEGACY_FALLBACK_FIELD in raw` → `0`) is unchanged
+  by the backup/restore addition.
+
+### 4. Repo-wide sanity grep — bare `Pressable`, hardcoded hex — 1 fix
+
+- **Bare `Pressable` import from `react-native`:** exactly 2 hits repo-wide
+  — `CameraScoringScreen.tsx` and `Sheet.tsx` — matching the two documented
+  exceptions exactly. Clean.
+- **Hardcoded hex, evaluated hit by hit:**
+  - `LeaderboardScreen.tsx:326` — the one documented UI-color exception,
+    unchanged.
+  - `CameraScoringScreen.tsx` — its own local token block, documented
+    exception, unchanged.
+  - `shadowColor: '#000'` (`GameSummaryScreen.tsx`, `HomeScreen.tsx` x3,
+    `X01GameScreen.tsx` x2, `SwitchRow.tsx`, `EventStinger.tsx`) — matches
+    the theme's own canonical shadow tokens (`src/theme/index.ts:114,121,128`
+    all hardcode `shadowColor: '#000'` too), consistent with CLAUDE.md's
+    "soft black shadows" rule, not a stray/independent color. Not a
+    violation.
+  - `Icon.tsx:135`'s `color = '#FFFFFF'` default prop — a type-safe
+    fallback never actually hit (every real call site in the app passes an
+    explicit theme color); left alone, same category as the shadow case.
+  - `DartboardLogo.tsx` (10 hex values, real dartboard segment
+    colors — black/cream/red/green) — a literal miniature dartboard icon
+    on `HomeScreen.tsx:117`, depicting the real object rather than app UI
+    chrome, so it can't reasonably use the ember palette without losing
+    recognizability. This is a legitimate exception in the same spirit as
+    `CameraScoringScreen`/`LeaderboardScreen`, but isn't actually listed in
+    CLAUDE.md's "one documented exception" wording — **flagging this as a
+    documentation gap**, not a code bug: CLAUDE.md should probably name
+    this file alongside `LeaderboardScreen.tsx` so a future hex-grep round
+    doesn't have to re-derive the same "it's fine, it's literal dartboard
+    colors" reasoning from scratch.
+  - **`Confetti.tsx:20-23`'s `PALETTE` array — fixed.** 2 of its 6 entries
+    (`'#F4F1EE'`, `'#8E2716'`) were literal hex duplicates of
+    `COLORS.text`/`COLORS.accentDeep` — tokens already imported and used
+    two lines above in the same array (`COLORS.accent`/`COLORS.accentHot`).
+    Swapped both to reference the existing tokens instead of duplicating
+    their values as raw strings. The other two entries (`'#F0A030'`,
+    `'#C1A536'`) don't correspond to any existing token — left as
+    intentional one-off decorative confetti colors, not a violation (no
+    existing token to point at instead). `npx tsc --noEmit` clean after.
+
+## Fixed directly
+
+1. `src/screens/ChallengesScreen.tsx` — zero-player state now uses
+   `EmptyState` (matching `AchievementsScreen.tsx`/
+   `CheckoutTrainerScreen.tsx`'s convention) instead of a stale inline hint
+   text left over from before the per-player picker existed; removed the
+   now-dead `emptyHint` style.
+2. `src/components/effects/Confetti.tsx` — 2 of 6 `PALETTE` entries were
+   hardcoded hex duplicating existing `COLORS.text`/`COLORS.accentDeep`
+   tokens; swapped to reference the tokens directly.
+
+## Flagged, not actioned
+
+1. `CheckoutTrainerScreen.tsx` loads its player list via a plain
+   `useEffect(() => {...}, [])` instead of `useFocusEffect` like its three
+   sibling picker screens. No observable bug today (the screen can only
+   ever be reached via a fresh mount — traced via a repo-wide grep of its
+   only navigation call site and its own exit paths), but it's a latent
+   inconsistency that would turn into a real staleness bug if this
+   screen's navigation shape ever changes. Low priority, candidate for a
+   future consolidation pass alongside other player-picker screens.
+2. `DartboardLogo.tsx`'s 10 hardcoded hex values are a legitimate
+   real-dartboard-colors exception, same spirit as the two exceptions
+   CLAUDE.md already documents, but CLAUDE.md's own wording ("the one
+   documented `LeaderboardScreen.tsx` exception") is now technically
+   inaccurate/incomplete. Documentation-only gap — worth a maintainer
+   updating CLAUDE.md's exception list, not a code change.
+
+## Overall verdict: SHIP AS-IS, 2 small fixes applied
+
+All 4 checks pass with direct code tracing, not agent-report trust. Two
+small, clearly-scoped issues were found and fixed (`ChallengesScreen.tsx`'s
+inconsistent zero-player state, `Confetti.tsx`'s 2 duplicate-hex palette
+entries). Two more items are flagged for awareness only (a latent, currently
+harmless `useFocusEffect` inconsistency; a documentation gap around
+`DartboardLogo.tsx`'s dartboard-realism hex exception). `npx tsc --noEmit`
+clean throughout. No blocking issues found in the player-picker
+consistency check, the tournament/celebration interaction (including the
+bracket-deciding match specifically), or the CheckoutTrainer backup+picker
+interaction.

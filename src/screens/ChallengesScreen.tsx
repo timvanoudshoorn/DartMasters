@@ -9,6 +9,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon } from '../components/icons/Icon';
 import { PlayerFilterChips } from '../components/PlayerFilterChips';
@@ -68,30 +69,36 @@ export function ChallengesScreen() {
         onBack={() => navigation.goBack()}
       />
 
-      {report && !report.playerId && (
-        <Text style={styles.emptyHint}>Add a player profile to start tracking daily challenges.</Text>
-      )}
-
-      {players.length > 1 && (
-        <PlayerFilterChips players={players} selectedId={selectedPlayerId} onSelect={setSelectedPlayerId} />
-      )}
-
-      <View style={styles.tabRow}>
-        <TabBar
-          options={[
-            { key: 'solo', label: 'Solo' },
-            { key: 'multiplayer', label: 'With Friends' },
-          ]}
-          value={tab}
-          onChange={setTab}
+      {players.length === 0 ? (
+        <EmptyState
+          icon="star"
+          title="No players yet"
+          subtitle="Add a player profile to start tracking daily challenges"
         />
-      </View>
+      ) : (
+        <>
+          {players.length > 1 && (
+            <PlayerFilterChips players={players} selectedId={selectedPlayerId} onSelect={setSelectedPlayerId} />
+          )}
 
-      <View style={styles.list}>
-        {list.map((status, i) => (
-          <ChallengeCard key={`${tab}-${status.definition.id}`} status={status} index={i} />
-        ))}
-      </View>
+          <View style={styles.tabRow}>
+            <TabBar
+              options={[
+                { key: 'solo', label: 'Solo' },
+                { key: 'multiplayer', label: 'With Friends' },
+              ]}
+              value={tab}
+              onChange={setTab}
+            />
+          </View>
+
+          <View style={styles.list}>
+            {list.map((status, i) => (
+              <ChallengeCard key={`${tab}-${status.definition.id}`} status={status} index={i} />
+            ))}
+          </View>
+        </>
+      )}
 
       <View style={{ height: spacing.xl }} />
     </Screen>
@@ -143,12 +150,6 @@ function ProgressFill({ percent, delay }: { percent: number; delay: number }) {
 }
 
 const styles = StyleSheet.create({
-  emptyHint: {
-    color: colors.textMuted,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    marginBottom: spacing.md,
-  },
   tabRow: {
     marginBottom: spacing.lg,
   },
