@@ -2,7 +2,7 @@
 // data through the existing storage modules only, so shapes round-trip
 // exactly as those modules define them. Never touches AsyncStorage directly.
 
-import { AppSettings, BullOffResult, BullOffStorage, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
+import { AppSettings, BullOffResult, BullOffStorage, CheckoutTrainerStorage, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
 import { TournamentStorage } from '../storage/tournament';
 import { GoalsStorage, PlayerGoals } from '../storage/goals';
 import { MatchRecord, Player, Tournament } from '../types';
@@ -20,18 +20,23 @@ export interface BackupData {
   tournaments?: Tournament[];
   /** Added in version 2; keyed by player id, absent on older exports. */
   playerGoals?: { [playerId: string]: PlayerGoals };
+  /** Added in version 2; Checkout Trainer per-player best-streak blob
+   * (keyed by player id, plus a reserved legacy-fallback field), absent on
+   * older exports. */
+  checkoutTrainerBest?: { [playerId: string]: number };
 }
 
 const REQUIRED_KEYS: (keyof BackupData)[] = ['version', 'players', 'matches', 'settings', 'bullOffLog'];
 
 /** Gathers every AsyncStorage-backed slice into a single JSON-serializable snapshot. */
 export async function exportAllData(): Promise<BackupData> {
-  const [players, matches, settings, bullOffLog, tournaments] = await Promise.all([
+  const [players, matches, settings, bullOffLog, tournaments, checkoutTrainerBest] = await Promise.all([
     PlayerStorage.getAll(),
     MatchStorage.getAll(),
     SettingsStorage.get(),
     BullOffStorage.getAll(),
     TournamentStorage.getAll(),
+    CheckoutTrainerStorage.getAllBest(),
   ]);
 
   const playerGoals: { [playerId: string]: PlayerGoals } = {};
@@ -51,6 +56,7 @@ export async function exportAllData(): Promise<BackupData> {
     bullOffLog,
     tournaments,
     playerGoals,
+    checkoutTrainerBest,
   };
 }
 
@@ -118,5 +124,11 @@ export async function importAllData(jsonString: string): Promise<void> {
   // Player goals: absent on backups made before version 2.
   for (const [playerId, goals] of Object.entries(data.playerGoals ?? {})) {
     await GoalsStorage.setForPlayer(playerId, goals);
+  }
+
+  // Checkout Trainer best streaks: absent on backups made before this field
+  // was added; nothing to restore in that case (not a required key).
+  if (data.checkoutTrainerBest) {
+    await CheckoutTrainerStorage.setAllBest(data.checkoutTrainerBest);
   }
 }

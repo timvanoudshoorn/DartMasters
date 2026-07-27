@@ -859,6 +859,85 @@ actual audio clip playback is gated.
 - `Logic Agent: gate dart announcer playback on sound-effects setting` —
   `src/sound/soundManager.ts`, `src/utils/dartAnnouncer.ts`
 
+## Round: CheckoutTrainerStorage missing from backup export/import
+
+### Bug confirmed
+
+`src/logic/backup.ts`'s `BackupData`/`exportAllData()`/`importAllData()`
+covered players, matches, settings, bullOffLog, tournaments, and
+playerGoals, but had zero references to `CheckoutTrainerStorage` (the
+per-player best-streak data made per-player earlier this cycle via
+`getBest(playerId)`/`setBest(playerId, best)`). A full export/import
+round-trip silently dropped every player's checkout-trainer best streak.
+
+### Fix applied
+
+- `src/storage/storage.ts`: added a bulk accessor pair to
+  `CheckoutTrainerStorage`, reusing the existing `CHECKOUT_TRAINER_BEST_KEY`
+  storage key (no new key introduced):
+  ```ts
+  async getAllBest(): Promise<CheckoutTrainerBestBlob>
+  async setAllBest(data: CheckoutTrainerBestBlob): Promise<void>
+  ```
+  `getAllBest()` returns the entire stored blob as-is (including the
+  reserved `LEGACY_FALLBACK_FIELD` entry if present, normalizing the old
+  plain-number legacy shape into `{ [LEGACY_FALLBACK_FIELD]: raw }` the same
+  way `getBest`/`setBest` already do) so no data is lost in translation.
+  `setAllBest()` overwrites the key wholesale — same "replace the slice
+  entirely" convention `MatchStorage.clear()` + resave already uses for
+  import. Neither `getBest`/`setBest` nor the migration logic were touched.
+
+- `src/logic/backup.ts`:
+  - Added `checkoutTrainerBest?: { [playerId: string]: number }` to
+    `BackupData`, documented the same way `tournaments`/`playerGoals` are
+    ("Added in version 2; absent on older exports") — **not** added to
+    `REQUIRED_KEYS`, so it's optional/graceful on import, matching the
+    brief (an old backup file without this field must still import).
+  - `exportAllData()`: added `CheckoutTrainerStorage.getAllBest()` to the
+    existing `Promise.all(...)` batch and included the result under
+    `checkoutTrainerBest` in the returned object.
+  - `importAllData()`: added, after the existing `playerGoals` restore
+    block:
+    ```ts
+    if (data.checkoutTrainerBest) {
+      await CheckoutTrainerStorage.setAllBest(data.checkoutTrainerBest);
+    }
+    ```
+    Guarded on truthiness (not `?? {}` + unconditional write) so an old
+    backup with the field entirely absent leaves whatever checkout-trainer
+    data is already on the importing device untouched, rather than wiping
+    it with an empty blob — consistent with "nothing to restore if it was
+    never exported" from the task brief.
+
+### Confirmation: old backups still import successfully
+
+`isValidBackup()`'s `REQUIRED_KEYS` list was not changed (`version`,
+`players`, `matches`, `settings`, `bullOffLog` only) and `checkoutTrainerBest`
+was added as an optional field on `BackupData`, exactly like `tournaments`/
+`playerGoals` were for version 2. A pre-existing backup JSON with no
+`checkoutTrainerBest` key parses, passes `isValidBackup()`, and imports
+fully — the new `if (data.checkoutTrainerBest)` block is simply skipped
+(`undefined` is falsy), leaving `CheckoutTrainerStorage` untouched on the
+importing device. No new required fields, no migration needed for old
+backup files.
+
+### Verification
+
+`npx tsc --noEmit` — clean, no output.
+
+### Files touched
+
+- `src/storage/storage.ts` — added `CheckoutTrainerStorage.getAllBest()` /
+  `.setAllBest()`.
+- `src/logic/backup.ts` — added `checkoutTrainerBest` to `BackupData`,
+  populated in `exportAllData()`, restored (optionally) in
+  `importAllData()`.
+
+### Commit
+
+- `Logic Agent: include CheckoutTrainerStorage in backup export/import` —
+  `src/logic/backup.ts`, `src/storage/storage.ts`
+
 ## Round: Win-celebration bot guard was too narrow — missed human guests
 
 ### Bug confirmed

@@ -172,4 +172,18 @@ export const CheckoutTrainerStorage = {
     blob[playerId] = best;
     await writeJson(CHECKOUT_TRAINER_BEST_KEY, blob);
   },
+  /** Bulk read of the entire per-player best-streak blob (including the
+   * legacy fallback field, if present), for backup/export purposes. */
+  async getAllBest(): Promise<CheckoutTrainerBestBlob> {
+    const raw = await readJson<CheckoutTrainerBestBlob | number>(CHECKOUT_TRAINER_BEST_KEY, {});
+    if (isLegacyGlobalNumber(raw)) {
+      return { [LEGACY_FALLBACK_FIELD]: raw };
+    }
+    return { ...raw };
+  },
+  /** Bulk write of the entire per-player best-streak blob, for
+   * backup/restore purposes. Overwrites whatever is currently stored. */
+  async setAllBest(data: CheckoutTrainerBestBlob): Promise<void> {
+    await writeJson(CHECKOUT_TRAINER_BEST_KEY, { ...data });
+  },
 };
