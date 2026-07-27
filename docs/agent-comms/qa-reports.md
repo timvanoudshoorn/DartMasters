@@ -880,3 +880,86 @@ clean, `git status` shows nothing outstanding beyond this session's own
 doc files). The other 2 checks (toggle independence, uncaught-promise
 grep) pass cleanly with no changes needed. No issues remain outstanding
 from this round's 3 changes.
+
+## Round 6 verification: guest-celebration guard + backup/restore fix
+
+### Check 1 — guest-celebration guard (`GameSummaryScreen.tsx:143`)
+
+`const winnerIsGuest = found?.winnerId ? !!found.guestNames?.[found.winnerId] : false;`
+gates both `setNewBests`/`setNewAchievements` (lines 144-153).
+
+Traced `guestNames` back to its one and only producer, `guestIdentityMaps()`
+(`src/utils/guestMaps.ts:9-22`): `guestNames` is built exclusively from
+`Object.entries(config.guestPlayers)` — never from `config.playerIds` or any
+real `Player` record. Confirmed the only two places `config.guestPlayers`
+(and `Tournament.guestPlayers`) are ever populated are `GameSetupScreen.tsx`'s
+`addGuest`/`addBot` (`guest-${generateId()}` / `bot-${generateId()}`, lines
+170/189) and `TournamentSetupScreen.tsx`'s `addGuest` (`guest-${generateId()}`,
+line 111) — both literal, hyphenated string-prefixed ids assigned only to
+entries pushed into the local `guests` array, which is kept structurally
+separate from `selectedIds`/`playerIds` (real saved players, added via
+`PlayerStorage.save()` + `setSelectedIds`, never touch `guests`).
+
+Checked whether a real `Player.id` could ever collide with a `guest-*`/`bot-*`
+key: real ids come from `generateId()` directly
+(`src/utils/id.ts:1-3`, `` `${Date.now().toString(36)}-${Math.random()...}` ``)
+with no prefix ever added — structurally cannot start with `guest-`/`bot-`
+literal text, since prefixing happens only at the two guest/bot creation call
+sites, never at the point `generateId()` itself runs for a real player. Also
+grepped the whole repo for every write of `.guestNames` on a `MatchRecord`
+(`src/utils/guestMaps.ts:17` only) and every one of the 8 game screens'
+`finalizeMatch`-equivalent call sites (`AroundTheClock`, `Cricket`, `Bobs27`,
+`HalveIt`, `X01`, `Practice170`, `Killer`, `Shanghai`) — all 8 spread
+`...guestIdentityMaps(config)`, none construct `guestNames` any other way.
+
+**Result: PASS.** No real, non-guest, non-bot `Player` can ever appear as a
+key in `guestNames`. The guard is strictly broader than the old
+`botPlayerIds`-only check (as intended) and introduces no new false-positive
+suppression risk.
+
+### Check 2 — backup/restore CheckoutTrainer round-trip (`src/logic/backup.ts`, `src/storage/storage.ts`)
+
+Traced the full round trip: `CheckoutTrainerStorage.getAllBest()`
+(`storage.ts:177-183`) returns the raw per-player blob, and if the on-disk
+value is still the pre-migration legacy shape (a bare `number`), wraps it as
+`{ [LEGACY_FALLBACK_FIELD]: raw }` rather than dropping it — so the legacy
+value is never silently lost even mid-export. `exportAllData()`
+(`backup.ts:39,59`) puts this object straight onto `BackupData.checkoutTrainerBest`
+(typed `{ [playerId: string]: number }`, which the `LEGACY_FALLBACK_FIELD`
+string key satisfies structurally since it's just another string key).
+`JSON.stringify` round-trips arbitrary string keys with no special handling
+needed. On import, `importAllData()` (`backup.ts:131-133`) calls
+`CheckoutTrainerStorage.setAllBest(data.checkoutTrainerBest)`
+(`storage.ts:186-188`), which writes `{ ...data }` verbatim back to the same
+AsyncStorage key — the `LEGACY_FALLBACK_FIELD` entry survives untouched
+alongside all per-player entries. Confirmed `getBest(playerId)`
+(`storage.ts:154-166`) on the restored device still checks
+`playerId in raw` first, falling back to `LEGACY_FALLBACK_FIELD in raw` —
+correct behavior post-restore for any not-yet-migrated player.
+
+Checked `isValidBackup()` (`backup.ts:68-79`): `checkoutTrainerBest` is not
+in `REQUIRED_KEYS` (`backup.ts:29`, only `version`/`players`/`matches`/
+`settings`/`bullOffLog`), and the function only checks for presence/shape of
+the required keys — it never rejects a payload for having *extra* optional
+keys. Adding `checkoutTrainerBest` (or the legacy field nested inside it)
+cannot fail validation, on old or new exports alike.
+
+**Result: PASS.** Legacy-fallback field genuinely round-trips, and
+`isValidBackup()` cannot be tripped up by the new optional field.
+
+### Check 3 — commit/tsc sanity
+
+`git log --oneline` confirms both fixes are committed, not just claimed:
+`af5a9ff` "Logic Agent: extend win-celebration guard from bots to all guests"
+(introduces the `winnerIsGuest` line) and `f00ce54` "Logic Agent: include
+CheckoutTrainerStorage in backup export/import" (adds `checkoutTrainerBest`
+to `exportAllData`/`importAllData`). `npx tsc --noEmit` clean. `git status`
+shows nothing outstanding beyond the pre-existing untracked
+`.claude/worktrees/` directory (already flagged and dispositioned in a prior
+QA round — leftover checkouts from unrelated sessions, correctly left
+untouched).
+
+## Overall verdict: SHIP AS-IS
+
+Both Round 6 fixes verified correct by full code trace, not just accepted
+from prior reports. No bugs found, nothing fixed, nothing flagged.
