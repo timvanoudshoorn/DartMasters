@@ -605,3 +605,160 @@ something to route around by proposing it as if it were in-scope).
 - **Killer risk affordance** — not re-examined this round; nothing new
   since Round 2's reassessment, no reason to re-litigate a third time
   without new evidence.
+
+---
+
+# Round 4 Report — 2026-07-27
+
+Proposal-only, no application code touched. **Honest headline: this round
+found one real, well-evidenced bug and confirmed the rest of the backlog is
+genuinely thin.** `src/utils/` (all six modules), the storage layer's
+`.then()`/`.catch()` coverage app-wide, and a repo-wide dead-code/type-safety
+grep all read clean — see "Areas checked, nothing proposed" below for the
+specifics of each. The one finding below is new territory: a concrete
+interaction gap between two features that shipped in separate rounds
+(bot opponents, added long before this cycle, and the PB/achievement
+celebration, shipped in Rounds 1-2) that nobody had reason to cross-check
+until this round's prompt explicitly asked "do recently-added features
+interact correctly."
+
+## 1. Bot opponents can trigger "NEW BEST"/"UNLOCKED" celebrations for
+   themselves — because bots have no stable identity across matches
+
+**What/why:** `GameSetupScreen.tsx` generates a brand-new random id for
+every bot every time one is added to a lineup: `id: \`bot-${generateId()}\``
+(line 189) — bots are never persisted `Player` records, so this id is
+thrown away the moment the match ends; a bot added to five different
+matches gets five unrelated ids. `GameSummaryScreen.tsx`'s celebration
+wiring (lines 134-139) computes `newPersonalBestsFromMatch(matches,
+found.winnerId, found.id)` and `newAchievementsFromMatch(matches,
+found.winnerId, found.id)` unconditionally whenever `match.winnerId` is
+set — there is no check anywhere in this path for whether the winner is a
+bot (confirmed by grep: `isBot`/`botPlayerIds` appear zero times in either
+`src/logic/personalBests.ts` or `src/logic/achievements.ts`). Both
+functions work purely off `matches.filter((m) => m.results[playerId])`
+(`personalBests.ts` line 50, and the equivalent pattern in
+`achievements.ts`'s `AchievementContext.matches` construction) — they have
+no concept of "is this id a real player," they just diff match history for
+whatever id they're handed.
+Trace the consequence end to end: a human loses to a bot in 501. `match
+.winnerId` is set to that match's one-off `bot-xxxxx` id. `newPersonalBestsFromMatch`
+runs `computePersonalBests` twice for that id — once with the full history,
+once without this match — and since **no other match in storage has ever
+used that exact bot id** (it was generated fresh this match and will never
+recur), the "without this match" computation always finds zero prior
+qualifying matches. Every stat the bot happened to clear a qualifying
+threshold on this one match (e.g. any checkout, any 100+ visit, any
+completed leg) reads as "first-ever record" and fires the full ceremony:
+green "NEW BEST" cell tint + medal badge + caption on the bot's stat card,
+the `haptic.rigid()` accent tick (line 217), and the same treatment for
+achievements (an "UNLOCKED · <title>" chip for whatever threshold-crossing
+achievement the bot's single-match stats happen to satisfy, e.g. "throw a
+180" or "win via double" on the very first bot win that does it). This
+isn't a rare edge case — it fires on every winning bot performance that
+clears any tracked threshold, which for weaker/mid bots losing occasionally
+and stronger bots winning often is a routine occurrence, not a corner case.
+Concretely wrong from the user's perspective: the celebration UI reads as
+"you/this player just set a personal record," but it's being shown for an
+opponent who has no persistent identity and, by construction, can never
+*not* look like it just set a record the first time it wins with any
+qualifying stat.
+**Scope:** The cleanest fix is a guard at the point of use, not a change to
+either logic module (both are correct, general-purpose functions — the bug
+is that they're being called with a bot's ephemeral id at all, not that
+they compute incorrectly). `GameSummaryScreen.tsx`'s two `setNewBests`/
+`setNewAchievements` calls (lines 134-139) should short-circuit to `[]`
+when the winner is a bot — the match record already carries
+`match.botPlayerIds` (populated by `guestIdentityMaps` in
+`src/utils/guestMaps.ts`, confirmed it's persisted on every `MatchRecord`),
+so the check is a one-line `found?.botPlayerIds?.includes(found.winnerId)`
+alongside the existing `found?.winnerId` check — no new data, no signature
+change to `personalBests.ts`/`achievements.ts`, no persisted-shape change.
+Owner: **Logic/Systems** (it's a guard condition in a `.then()` callback,
+not a visual change) — trivial diff, one file.
+**Size:** Small — a boolean guard added to two existing conditional
+expressions in one file.
+**Risk:** None. Purely additive guard condition; doesn't touch
+`src/logic/` game-rule modules, doesn't touch persisted `MatchRecord`
+shape (reads a field, `botPlayerIds`, that already exists and is already
+populated), doesn't change celebration behavior for any human winner.
+**Recommendation: build this now.** It's the most concrete, cheapest,
+lowest-risk item this round, and it's a genuine correctness bug (a
+celebration that reads as personally meaningful firing for a non-persistent
+opponent identity) rather than a polish nice-to-have.
+
+---
+
+## Areas checked, nothing proposed
+
+- **`src/utils/` — all six modules read fresh, all clean.** `overview.ts`
+  (`computeHomeOverview`'s "primary player = earliest-created" pattern is
+  the same one Round 3 already confirmed is intentional/cosmetic
+  elsewhere); `playerDisplay.ts` (`resolvePlayerDisplay`/
+  `resolvePlayerDisplayFromMatch` both have a sane `FALLBACK` for missing
+  ids); `guestMaps.ts` (`guestIdentityMaps` — confirmed correct, and is
+  exactly the field the bug above leans on); `id.ts` (trivial, correct);
+  `shuffle.ts` (`shuffled`/`randomInsert`, both standard, correct
+  Fisher-Yates and correct insert-at-random-index math); `dartAnnouncer.ts`
+  already fixed in a prior round, re-read fresh, no new issues.
+- **Storage-layer error handling, app-wide (not just game screens).** Ran a
+  repo-wide count: 44 `.then(` call sites across 30 files vs. 51 `.catch(`
+  call sites across 31 files — every file with a `.then()` has a matching
+  `.catch()` in the same file, no orphans found. Spot-checked the two files
+  the brief named directly: `src/logic/backup.ts` uses `await` throughout
+  with no bare unhandled promise (its export/import entry points are called
+  from `BackupRestoreScreen.tsx`, which wraps them); `src/storage/tournament.ts`'s
+  `readJson`/`writeJson` helpers — `readJson` already try/catches and falls
+  back to the caller-supplied default on any parse/read failure; `writeJson`
+  propagates failures up to its caller by design (same pattern as every
+  other storage module in `src/storage/`), and every call site that invokes
+  it is itself inside a `.then()`/`await` chain with its own `.catch()`.
+  No new gap found.
+- **Type safety / dead code, repo-wide grep.** Searched all of `src/` for
+  `: any`, `@ts-ignore`, `// TODO`, `// FIXME`, and `console.log(` (not
+  `console.error`). The only match across the entire tree is
+  `CameraScoringScreen.tsx` — already covered by Round 3's escalation
+  (`DEBUG_SAVE_FRAMES`) and explicitly off-limits per `CLAUDE.md`. Nothing
+  new to propose here; the codebase is unusually clean on this axis for a
+  four-round-deep audit cycle.
+- **Practice mode / celebration-feature interaction, beyond the bot bug
+  above.** `Practice170GameScreen.tsx` does route through
+  `GameSummaryScreen` (`navigation.replace('GameSummary', { matchId:
+  record.id })`, confirmed at line 186/189) so it already gets the full
+  PB/achievement ceremony — no gap there. `CheckoutTrainerScreen.tsx` does
+  *not* route through `GameSummaryScreen` at all (confirmed: zero
+  `GameSummary`/`navigation.replace` references in the file) and never
+  creates a `MatchRecord` — it's a standalone streak-drill, not a "match,"
+  so it structurally can't participate in match-based celebrations. This is
+  correct as-is, not a gap: `computePersonalBests`/`computeAchievements`
+  are both defined purely in terms of `MatchRecord[]` history, and
+  Checkout Trainer's per-player best-streak (fixed this cycle, per
+  `head-log.md`) is already its own distinct, appropriately-scoped stat.
+- **Onboarding / zero-player first-launch state.** Traced `HomeScreen.tsx`,
+  `AchievementsScreen.tsx`, `StatsScreen.tsx`, and `GameSetupScreen.tsx`
+  fresh with a zero-player lens. All four degrade sensibly: `HomeScreen`'s
+  stats band shows honest zeros (0 matches/0%/0 streak) rather than
+  misleading placeholders, and the "New Match" CTA is always reachable
+  regardless of player count; `AchievementsScreen` shows a proper
+  `EmptyState` ("No players yet — Add a player profile to start earning
+  badges") gated on `players.length === 0`; `GameSetupScreen`'s "Start"
+  button is disabled (`canStart = selectedIds.length >= minPlayers &&
+  hasHuman`) until a valid lineup exists, so there's no dead-end path to
+  starting a playerless match. No rough edges found specific to the
+  empty-app state that a longtime tester's data-rich device would mask —
+  this area reads like it already had deliberate attention, not an
+  oversight.
+- **Killer risk affordance** — not re-examined again this round per the
+  brief's explicit instruction not to re-litigate a fourth time without new
+  evidence; nothing new surfaced incidentally either.
+
+**Recommendation for Round 5 and beyond:** with `src/utils/`, the storage
+layer, and a type-safety/dead-code sweep all now confirmed clean across
+four rounds, and only one small bug found this round, the polish/feature
+backlog for this app is close to exhausted. Suggest the Head Agent consider
+shifting future cycles toward a broader QA/regression sweep (exercising
+actual game flows end-to-end rather than static reads, which is a
+different failure mode than anything the last four rounds have been
+positioned to catch) once the one escalated item (`DEBUG_SAVE_FRAMES`) gets
+a human decision, rather than continuing to commission fresh proposal
+rounds against an increasingly dry well.

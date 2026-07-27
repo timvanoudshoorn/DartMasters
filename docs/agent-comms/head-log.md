@@ -867,6 +867,97 @@ user-escalated `DEBUG_SAVE_FRAMES` flag. Roadmap backlog is now dry again
 — next dispatch needs either a fourth Roadmap pass or to wait for user
 input on the escalated item.
 
+## 2026-07-27 — Pushed to origin, user checkpoint
+
+At user request, committed the two outstanding doc files
+(`head-log.md`/`roadmap-reports.md`) and pushed all 56 local commits to
+`origin/main` (`d3df0a4`) so progress is visible on GitHub. No app-code
+changes in this step — pure git housekeeping. User then paused briefly to
+review, in the meantime a Roadmap Round 4 (dispatched just before the
+pause) completed in the background.
+
+**Roadmap Round 4 findings:** one real, well-evidenced bug — bots can
+trigger "NEW BEST"/achievement celebrations on `GameSummaryScreen`.
+`GameSetupScreen.tsx:189` generates a fresh random id (`bot-${generateId()}`)
+for every bot on every match — bots have no stable identity across
+matches. `GameSummaryScreen.tsx`'s celebration computation
+(`newPersonalBestsFromMatch`/`newAchievementsFromMatch`, ~lines 134-139)
+has no bot check, even though `match.botPlayerIds` already exists and is
+used elsewhere in the very same file (line 49) for exactly this purpose.
+Since a bot's id never recurs, any qualifying stat on a bot's winning
+match reads as a "first-ever record" and fires the full ceremony for an
+opponent with no persistent identity — a routine occurrence, not a rare
+edge case. **Head Agent verified this directly** (grepped both files,
+confirmed `botPlayerIds` exists on `MatchRecord`, confirmed the celebration
+call sites genuinely have no bot guard) before accepting it as real.
+Everything else in Round 4 read clean (all `src/utils/` modules, app-wide
+`.then()`/`.catch()` coverage, a repo-wide `any`/`TODO`/`console.log` grep
+with no new hits, practice-mode celebration integration, zero-player
+onboarding). Roadmap's own recommendation: the polish backlog is close to
+exhausted after 4 rounds; suggested shifting future cycles toward broad
+QA/regression sweeps over more static-read proposal rounds.
+
+**User said "go on."** Dispatching the bot-celebration fix now (small,
+single-agent, no collab needed) and, per Roadmap's own recommendation,
+following it with a broad QA/regression sweep across the whole app rather
+than an immediate fifth proposal round.
+
+## 2026-07-27 — Bot-celebration bug fixed and verified
+
+`GameSummaryScreen.tsx`'s load effect now computes `winnerIsBot` via
+`found.botPlayerIds?.includes(found.winnerId)` (same pattern already used
+elsewhere in the file for `buildRematchConfig`) and gates both
+`setNewBests`/`setNewAchievements` on `!winnerIsBot`, preserving the
+existing `found?.winnerId` draw-safety check. Confirmed the tournament
+path needs no separate handling — bots can play tournament matchups, but
+`MatchRecord.botPlayerIds` is populated identically via `guestIdentityMaps()`
+regardless of whether the match came from a tournament or a casual game,
+so one guard covers both.
+
+**Verified independently:** read the actual diff directly — confirmed the
+exact gating logic matches what was reported, `npx tsc --noEmit` clean,
+`git status` clean. Accepted.
+
+**Shifting focus now, per Roadmap's own Round 4 recommendation:** rather
+than a fifth static-read proposal round chasing a thinning backlog,
+dispatching a broad QA/regression sweep across the whole app next —
+re-verify core scoring/checkout correctness across all 8 game modes plus
+spot-check the large volume of UI/haptic/motion work shipped this cycle
+for anything that's drifted or interacts badly, now that a great deal has
+accumulated since the last full-app QA pass.
+
+## 2026-07-27 — Whole-app QA sweep: 3 real bugs found and fixed
+
+This broader pass (vs. the usual per-round QA) paid off: found and fixed
+3 genuinely uncaught `.then()` promises that every prior `.then()`/`.catch()`
+audit missed because they were scoped to `src/` — `App.tsx` sits at the
+repo root, outside that scope, and had two (the launch-time
+`SettingsStorage.get()` seeding sound/haptics/reduced-motion, and
+`configureAudioMode()` before preload); the third was
+`BackupRestoreScreen.tsx`'s focus-effect `SettingsStorage.get()` for the
+last-backup timestamp display. All three now chain `.catch()` with
+`console.error`, matching the app's established pattern everywhere else.
+**Verified independently:** read `App.tsx`'s actual fix directly — correct,
+proper error logging, `npx tsc --noEmit` clean.
+
+Everything else in this sweep read clean on genuine re-tracing, not
+pattern-matching: fresh scoring-path traces in Shanghai/HalveIt/Bobs27/ATC
+(full path, not just each mode's previously-fixed bug); a full top-to-
+bottom read of `GameSummaryScreen.tsx` (739 lines, touched by nearly every
+round this cycle) found no dead code, no orphaned state, and confirmed the
+PB/achievement celebration paths share one code path rather than two that
+could silently diverge; the full haptic timeline for a maximal case
+(checkout + leg-won + PB + achievement) traced and confirmed non-
+overlapping; undo re-verified in X01 (bust-flash deferred-commit edge
+case) plus 4 other modes; `SettingsScreen.tsx`'s three toggles confirmed
+sharing one `update()` path with correct persist/reload round-tripping.
+
+**Verdict: ship as-is**, with the 3 real fixes applied. This is exactly
+the value a broader cross-cutting sweep is supposed to add beyond
+per-round QA — a scope gap (`App.tsx` outside `src/`) that no individual
+round's narrower review would have caught. `git status` clean beyond this
+session's own doc files.
+
 ## 2026-07-27 — UI Agent Round 2 report in, verified independently
 
 UI Agent completed all three approved tasks: `PlayerPairChips.tsx` (new,
