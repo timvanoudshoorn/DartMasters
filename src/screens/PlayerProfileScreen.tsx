@@ -389,8 +389,13 @@ function GameTypeStats({
             <StatPill label="Best Leg" value={career.bestLegDarts ?? '—'} accent={colors.gold} />
             <StatPill label="Win Rate" value={`${career.winRate.toFixed(0)}%`} />
           </View>
-          <View style={[styles.statsGrid, { marginTop: spacing.sm }]}>
-            <StatPill label="First 9" value={career.avgFirstNine.toFixed(1)} accent={colors.neonCyan} />
+          <View style={[styles.statsGrid, { marginTop: spacing.sm, justifyContent: 'flex-start' }]}>
+            <StatPill
+              label="First 9"
+              value={career.avgFirstNine.toFixed(1)}
+              accent={colors.neonCyan}
+              style={styles.soloStatPill}
+            />
           </View>
         </>
       )}
@@ -461,6 +466,14 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  // A single StatPill (e.g. "First 9") sharing the statsGrid row alone would
+  // otherwise inherit StatPill's default flex: 1 and stretch to the card's
+  // full width — a jarring, oversized pill next to the two evenly-sized
+  // 4-column rows above it. Fixed width keeps it visually consistent.
+  soloStatPill: {
+    flex: 0,
+    width: '25%',
   },
   matchRow: {
     flexDirection: 'row',

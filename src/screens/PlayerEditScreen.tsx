@@ -2,7 +2,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { Directory, File, Paths } from 'expo-file-system';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
@@ -111,9 +111,17 @@ export function PlayerEditScreen() {
     navigation.goBack();
   };
 
+  // Deleting is now async before the confirm dialog appears (isInActiveTournament
+  // must resolve first), which opens a brief window where a double-tap on the
+  // button could kick off two overlapping calls — each ending in its own
+  // navigation.goBack(), popping an extra screen. This ref closes that window.
+  const removingRef = useRef(false);
+
   const remove = async () => {
-    if (!editingId) return;
+    if (!editingId || removingRef.current) return;
+    removingRef.current = true;
     const inActiveTournament = await TournamentStorage.isInActiveTournament(editingId);
+    removingRef.current = false;
     const message = inActiveTournament
       ? `Remove ${name}? Match history will be kept. They're in an in-progress tournament and will show as an unknown player in that bracket.`
       : `Remove ${name}? Match history will be kept.`;

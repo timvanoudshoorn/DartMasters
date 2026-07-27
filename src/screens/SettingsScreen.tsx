@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { PressableScale } from '../components/primitives/PressableScale';
@@ -26,6 +26,7 @@ export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [settings, setSettings] = useState<AppSettings>(SettingsStorage.defaults);
   const [players, setPlayers] = useState<Player[]>([]);
+  const removingIdsRef = useRef<Set<string>>(new Set());
 
   useFocusEffect(
     useCallback(() => {
@@ -55,7 +56,14 @@ export function SettingsScreen() {
   };
 
   const removePlayer = async (id: string, name: string) => {
+    // Same double-tap window as PlayerEditScreen's remove(): the confirm
+    // dialog no longer appears synchronously, so guard against a second tap
+    // firing another isInActiveTournament lookup (and a second stacked alert)
+    // before the first one resolves.
+    if (removingIdsRef.current.has(id)) return;
+    removingIdsRef.current.add(id);
     const inActiveTournament = await TournamentStorage.isInActiveTournament(id);
+    removingIdsRef.current.delete(id);
     const message = inActiveTournament
       ? `Remove ${name}? Match history will be kept. They're in an in-progress tournament and will show as an unknown player in that bracket.`
       : `Remove ${name}? Match history will be kept.`;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
 
@@ -7,11 +7,14 @@ interface StatPillProps {
   label: string;
   value: string | number;
   accent?: string;
+  /** Extra styling merged onto the pill's own container — e.g. to opt a lone
+   * pill in a row out of the default `flex: 1` full-width stretch. */
+  style?: StyleProp<ViewStyle>;
 }
 
-export function StatPill({ label, value, accent }: StatPillProps) {
+export function StatPill({ label, value, accent, style }: StatPillProps) {
   return (
-    <View style={[styles.container, accent ? { borderColor: accent + '40' } : null]}>
+    <View style={[styles.container, accent ? { borderColor: accent + '40' } : null, style]}>
       <Text style={[styles.value, accent ? { color: accent } : null]}>{value}</Text>
       <Text style={styles.label}>{label}</Text>
     </View>
