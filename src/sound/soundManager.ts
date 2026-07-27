@@ -71,6 +71,10 @@ export function setSoundEnabled(enabled: boolean) {
   soundEnabled = enabled;
 }
 
+export function isSoundEnabled(): boolean {
+  return soundEnabled;
+}
+
 const cache: Partial<Record<SoundTrigger, Audio.Sound>> = {};
 
 async function loadSound(trigger: SoundTrigger): Promise<Audio.Sound | null> {

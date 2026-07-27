@@ -1,4 +1,5 @@
 import { Audio, AVPlaybackStatus } from 'expo-av';
+import { isSoundEnabled } from '../sound/soundManager';
 
 // iOS mutes app audio by default when the device's silent switch is on. That
 // requires Audio.setAudioModeAsync({ playsInSilentModeIOS: true, ... }) to be
@@ -273,6 +274,8 @@ function waitForClipToFinish(sound: Audio.Sound, token: number): Promise<void> {
 }
 
 async function playClip(clipKey: ClipKey): Promise<void> {
+  if (!isSoundEnabled()) return;
+
   const token = ++sequenceToken;
 
   if (currentSound) {

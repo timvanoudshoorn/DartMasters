@@ -686,3 +686,175 @@ needed, no gap for a tournament bot winner to slip through.
 ### Commit
 
 - `Logic Agent: skip PB/achievement celebration for bot winners` — `src/screens/GameSummaryScreen.tsx`
+
+## Round: Deleted player mid-tournament — investigation only, no bug found
+
+### Question
+
+What happens to an in-progress tournament bracket if a player who's part of
+it gets deleted via the player-removal flow (`PlayerStorage.remove`)?
+
+### Traced
+
+- `src/storage/storage.ts`'s `PlayerStorage.remove(playerId)` (lines 58-61):
+  does exactly one thing — filters the player out of the `@dartmasters/players`
+  blob and writes it back. No cross-reference cleanup of `MatchStorage`,
+  `TournamentStorage`, `ActiveMatchStorage`, or anything else. Confirmed via
+  full read of the file (176 lines) — no other storage module is imported or
+  touched from this function.
+- The actual removal UI: there's no delete action on `PlayersListScreen.tsx`
+  itself (it only lists players and navigates to `PlayerProfile`/`PlayerEdit`
+  on tap). The two real entry points that call `PlayerStorage.remove` are
+  `src/screens/PlayerEditScreen.tsx`'s `remove()` (line 113-127, reached via
+  Players list → row → Edit) and `src/screens/SettingsScreen.tsx`'s
+  `removePlayer()` (line 56-68, the Settings player-management list). Both
+  are byte-for-byte the same shape: an `Alert.alert` with the copy "Remove
+  {name}? Match history will be kept." / "Delete player... Match history
+  will be kept.", then `PlayerStorage.remove(id)` unconditionally. **Neither
+  checks for an in-progress tournament, an in-progress match, or anything
+  else before deleting** — grepped both files for
+  `ActiveMatchStorage`/`TournamentStorage`/`inProgress`: zero hits in either.
+- `src/logic/tournament.ts` (full read): a `Tournament`'s bracket
+  (`TournamentRound[]` → `TournamentMatchup[]`) stores `playerAId`/
+  `playerBId` as raw `string | null` ids, never a live `Player` reference —
+  same pattern as `GameConfig.playerIds` and `MatchRecord.playerIds`
+  elsewhere in the app. Nothing in `createBracket`/`propagate`/
+  `recordMatchResult` reads anything off a `Player` object; it's pure
+  id-shuffling. So deleting a player never corrupts the bracket structure
+  itself — the ids stay exactly where they were, just now dangling.
+- **Display path:** `TournamentBracketScreen.tsx` line 49-50: `display = (id)
+  => id ? resolvePlayerDisplay(id, players, tournament.guestPlayers) : null`.
+  `HomeScreen.tsx`'s "Continue Tournament" banner (lines 89-101, shipped this
+  cycle) calls the identical `resolvePlayerDisplay(nextMatchup.playerAId,
+  playerMap, activeTournament.guestPlayers)` for its two-name summary line.
+  `src/utils/playerDisplay.ts`'s `resolvePlayerDisplay` (full read): checks
+  the live players map first, then the guest-players map, and if a dangling
+  id matches neither, returns a hardcoded `FALLBACK = { name: 'Player',
+  color: colors.primary }` — never throws, never returns `undefined`. Every
+  call site in both screens is already guarded against `null` ids (only
+  `TournamentBracketScreen`'s `display()` needs to since pending/bye slots
+  are legitimately `null`; `HomeScreen`'s banner only reads
+  `nextMatchup.playerAId`/`playerBId` when `findNextPlayableMatchup` has
+  already confirmed both are non-null). **No crash path found anywhere in
+  either screen.**
+- Confirmed the match itself remains playable even with a dangling id:
+  `TournamentBracketScreen.tsx`'s `playMatchup()` (line 56-70) builds
+  `GameConfig.playerIds: [matchup.playerAId, matchup.playerBId]` straight
+  from the bracket and navigates to `Game` — the deleted player's id flows
+  into a normal match, which every per-mode game screen already displays via
+  the same `resolvePlayerDisplay` (16 files repo-wide use it, confirmed via
+  grep), so the deleted player shows up as generic "Player" throughout that
+  match too, scores normally, and the resulting `MatchRecord` persists that
+  same dangling id — which is exactly how `MatchRecord.playerIds` already
+  behaves for any deleted player in ordinary (non-tournament) match history,
+  via the near-identical `resolvePlayerDisplayFromMatch` fallback in the
+  same file (same `FALLBACK` constant, falls back through
+  `match.guestNames` instead of `tournament.guestPlayers` first).
+
+### Verdict: not a bug — already handled gracefully, via a pre-existing app-wide convention
+
+This is the exact "referenced player no longer exists" pattern the task
+anticipated already existing. `resolvePlayerDisplay`'s `FALLBACK` (`name:
+'Player'`) is the one fallback convention the whole app already uses for
+dangling ids — `GameSummaryScreen`, `TournamentBracketScreen`, `HomeScreen`,
+`HeadToHeadScreen`, `StatsScreen`, `MatchDetailScreen`, `BullOffScreen`, and
+every per-mode game screen route through it or its `...FromMatch` sibling.
+Tournaments are not a special case that was missed — they use the identical
+function the rest of the app already relies on for this. No code change
+made; nothing to fix.
+
+The one real, cosmetic gap: if a deleted player's tournament matchup is
+still played out, their name is indistinguishable from any other unresolved
+"Player" (no way to tell which original player it was, unlike a guest who at
+least keeps their entered name via `guestPlayers`/`guestNames`). This is
+mildly worse for tournaments than for finished match history, because a
+tournament bracket stays *live and playable* after the deletion (you can
+keep advancing the bracket with an anonymized opponent), whereas match
+history is purely retrospective. Not a crash, not data corruption — a UX
+rough edge.
+
+### Flagged for UI Agent (not built here, per task brief)
+
+Neither `PlayerEditScreen.tsx`'s `remove()` nor `SettingsScreen.tsx`'s
+`removePlayer()` warns when the player being removed is part of an
+in-progress tournament (`TournamentStorage.getAll().some(t => t.status ===
+'inProgress' && t.rounds.some(r => r.matchups.some(m => m.playerAId === id
+|| m.playerBId === id)))`). Both currently show the same generic "Match
+history will be kept" copy regardless. A distinct warning/confirmation
+("This player is still in an active tournament — their remaining matches
+will show as 'Player'.") would close the UX gap above. This needs new Alert
+copy/logic in two screens plus a design call on wording — flagging for a UI
+Agent rather than building it myself, per the task's own instruction to
+route UI-flavored changes there. No storage/logic-side API is needed to
+support it — `TournamentStorage.getAll()` already exposes everything a
+check like this would need, so this is pure screen-level work whenever
+someone picks it up.
+
+### Verification
+
+No code changed this round. `npx tsc --noEmit` re-run anyway as a sanity
+check — clean, no output.
+
+## Round: Sound-effects toggle didn't gate the score announcer
+
+### Bug confirmed
+
+`src/sound/soundManager.ts`'s `playSound()` correctly gates on a
+module-level `soundEnabled` flag (set via `setSoundEnabled()`, wired from
+the "Sound effects" `SwitchRow` in `SettingsScreen.tsx`). `src/utils/
+dartAnnouncer.ts` is a fully separate playback system (its own `Audio.Sound`
+cache, its own `playClip()`) with zero reference to that flag anywhere —
+confirmed via grep before touching anything. Turning "Sound effects" off
+silenced gameplay SFX but left the announcer calling out every score/bust/
+game-on/game-shot regardless.
+
+### Fix applied
+
+- `src/sound/soundManager.ts`: added one new exported getter next to the
+  existing `setSoundEnabled`:
+  ```ts
+  export function isSoundEnabled(): boolean {
+    return soundEnabled;
+  }
+  ```
+  No change to `playSound()`, `setSoundEnabled()`, or the `soundEnabled`
+  variable itself — purely additive.
+- `src/utils/dartAnnouncer.ts`: imported `isSoundEnabled` from
+  `../sound/soundManager` and added a single early-return guard as the
+  first line of `playClip()` (the one function every `announceScore`/
+  `announceGameOn`/`announceGameShot` call routes through):
+  ```ts
+  async function playClip(clipKey: ClipKey): Promise<void> {
+    if (!isSoundEnabled()) return;
+    ...
+  }
+  ```
+
+### Matches existing convention, not a new pattern
+
+This is the same shape as `playSound()`'s own gate (`if (!soundEnabled)
+return;` as its first line) — a synchronous check, early return, no
+side effects. Deliberately did **not** add any logic to stop a clip that's
+already mid-playback when the toggle flips: `playSound()` doesn't do that
+either (flipping the setting only affects the *next* call), so gating
+`playClip()` identically keeps both systems consistent rather than giving
+the announcer stricter behavior than SFX. `cancelAnnouncements()` (used
+elsewhere for turn-transition cleanup) is untouched — this fix only adds a
+gate at the point a new clip would start.
+
+### Haptics unaffected
+
+Confirmed no haptic code lives in `dartAnnouncer.ts` at all — the file only
+ever touches `Audio.Sound` playback. The separate Haptics toggle
+(`hapticsEnabled`/`haptics.ts`) and any haptic calls elsewhere in
+`X01GameScreen.tsx` are untouched by this change; only the announcer's
+actual audio clip playback is gated.
+
+### Verification
+
+`npx tsc --noEmit` — clean, no output.
+
+### Commit
+
+- `Logic Agent: gate dart announcer playback on sound-effects setting` —
+  `src/sound/soundManager.ts`, `src/utils/dartAnnouncer.ts`
