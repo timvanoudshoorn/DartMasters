@@ -13,7 +13,7 @@ import { useSoundEffects } from '../sound/useSoundEffects';
 import { BullOffStorage, PlayerStorage } from '../storage/storage';
 import { colors, fonts, radius, spacing } from '../theme';
 import { COLORS } from '../theme/colors';
-import { staggerDelay } from '../theme/motion';
+import { reducedMs, staggerDelay } from '../theme/motion';
 import { GameConfig, Player } from '../types';
 import { resolvePlayerDisplay } from '../utils/playerDisplay';
 import { randomInsert, shuffled } from '../utils/shuffle';
@@ -116,7 +116,7 @@ export function BullOffScreen() {
                 <Text style={styles.settledName} numberOfLines={1}>
                   {d.name}
                 </Text>
-                <Animated.View entering={ZoomIn.delay(120).springify().damping(11)}>
+                <Animated.View entering={ZoomIn.delay(reducedMs(120)).springify().damping(11)}>
                   <Icon name="checkmark" size={14} color={COLORS.positive} />
                 </Animated.View>
               </Animated.View>
