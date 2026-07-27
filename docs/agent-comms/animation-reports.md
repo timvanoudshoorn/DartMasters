@@ -329,3 +329,29 @@ to its shared-target mode.
 
 **No fixes needed, no commit.** All four checks confirm the vocabulary is
 intact and consistent; nothing flagged for a bigger follow-up.
+
+## BullOffScreen — missed reducedMs call site (2026-07-27)
+
+**Summary:** Trivial fix, confirmed by Head Agent via direct read.
+`src/screens/BullOffScreen.tsx`'s settled-checkmark pop still had a
+hardcoded `ZoomIn.delay(120)`, overlooked by the Reduce Motion migration
+rounds above (this file's pick-grid entrance three lines below already
+correctly used `staggerDelay(i)`, so it was one overlooked call site in an
+otherwise-migrated file, not an unmigrated file).
+
+**Fix:** imported `reducedMs` alongside the already-imported `staggerDelay`
+from `../theme/motion`, and changed line 119 to
+`ZoomIn.delay(reducedMs(120)).springify().damping(11)`. Pure delay
+substitution — no spring config, duration, or layout touched. With the
+flag off (default) this is byte-for-byte the same 120ms delay as before;
+with the flag on it collapses to 0, matching every other entrance in the
+file.
+
+**Confirmed only gap in the file:** re-grepped `entering=` across the
+whole file (5 hits: settled-row `FadeInDown` with no delay, the fixed
+checkmark `ZoomIn` above, the instruction/starting-hint `FadeInDown.duration(260)` with no delay, and the pick-grid `FadeInDown.delay(staggerDelay(i))`).
+Only the checkmark had a raw numeric `.delay()` — everything else either
+has no delay or was already gated.
+
+**`npx tsc --noEmit`: clean.** Committed as
+`3e40650 Animation Agent: wrap BullOffScreen checkmark ZoomIn delay in reducedMs`.
