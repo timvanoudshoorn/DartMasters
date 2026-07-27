@@ -1008,3 +1008,140 @@ appears.
 
 Files: `src/storage/tournament.ts` (new `isInActiveTournament` method),
 `src/screens/PlayerEditScreen.tsx`, `src/screens/SettingsScreen.tsx`.
+
+## Round: sectionTitle → typography.overline consolidation, game screens pass
+
+Picked up the five game screens flagged as candidates across the two prior
+consolidation rounds (`ShanghaiGameScreen.tsx`, `HalveItGameScreen.tsx`,
+`KillerGameScreen.tsx`, `AroundTheClockGameScreen.tsx`,
+`CricketGameScreen.tsx`), plus a clean-confirmation check of
+`X01GameScreen.tsx`, `Practice170GameScreen.tsx`, `Bobs27GameScreen.tsx`
+(named in the brief as screens that should have nothing to fix).
+
+**Result: no code changes in any of the 8 files.** Every one was read in
+full. This round's verdict is the opposite of a rubber stamp — every
+`letterSpacing`/`textTransform` hit in all 8 files was individually traced
+to its render site and role, and none of them are playing the "static
+label sitting above a group of content" role that `typography.overline`
+actually represents in the 8 already-consolidated flow screens (e.g.
+`PlayerProfileScreen.tsx`'s "PERSONAL BESTS"/"GOALS"/"RECENT MATCHES", or
+`StatsScreen.tsx`'s "MATCH HISTORY" — a static caption, unrelated to game
+state, sitting above a list that doesn't change shape turn-to-turn).
+Everything found in these 8 game screens is a live gameplay-HUD element
+instead. `npx tsc --noEmit` was clean before and after (no changes, so
+trivially still clean).
+
+### Why the grep hit these files, and why none of it qualifies
+
+The literal grep match (`letterSpacing: 0.6` or `0.8` + uppercase-styled
+text) in `ShanghaiGameScreen.tsx`, `HalveItGameScreen.tsx`,
+`AroundTheClockGameScreen.tsx`, `CricketGameScreen.tsx` turned out to be
+one single shared style, `legLabel` (`letterSpacing: 0.6`), used
+identically in all four files for the pill in `GameHud`'s `centerContent`:
+`ROUND {n} / {total}`, `GAME {n}`, `CUT-THROAT · GAME {n}`. This is a live
+round/game counter badge in the top bar — a game-state readout, not a
+label introducing a content group below it (there's nothing "below" it at
+all; it's a standalone pill). Explicitly the kind of thing the brief
+warned against ("not a game-state indicator"). Left untouched in all four
+files.
+
+`KillerGameScreen.tsx`'s two `letterSpacing: 0.6` hits are `killerBadge`/
+`eliminatedText` — small "KILLER"/"OUT" status badges rendered on a
+player's own tile, i.e. per-player state badges, not section headers.
+Also traced `phaseBannerLabel` (CLAIM/BULL OFF/KILL/BUILD LIVES,
+`letterSpacing: 1`) and `activeLabel` ("{NAME}'S TURN", `letterSpacing:
+0.5`) and the mode-title pill `title` ("KILLER", `letterSpacing: 1.5`) —
+all three are live phase/turn/mode indicators, none introduce a static
+content group. Nothing in this file qualifies. Left untouched.
+
+The genuinely closest candidate across all 8 files is `spotlightLabel`
+(`letterSpacing: 1`, e.g. "{NAME} — TARGET THIS ROUND" /
+"{NAME}'S TARGET"), shared verbatim across `ShanghaiGameScreen.tsx`,
+`HalveItGameScreen.tsx`, and `AroundTheClockGameScreen.tsx` (also present,
+same shape, in `Bobs27GameScreen.tsx`, one of the "should be clean" files).
+Looked hard at this one since it does sit visually above a block (the big
+target number + hint text), the same structural position a section title
+occupies. Concluded it's still not the same role: it's a live, per-turn
+readout that embeds the current active player's name and changes every
+single turn — it's the game's spotlight caption for a specific number
+directly beneath it, functionally identical to the "score label"
+exclusion the brief explicitly named (a caption tightly bound to one live
+value, not an organizational header over an otherwise-static list/group).
+It's also intentionally identical across four files already — a shared,
+deliberate HUD idiom for "the thing you're throwing at right now," not
+independently-drifted duplication of a design-system token. Left
+untouched everywhere it appears.
+
+Also traced but rejected as false positives: `scoreCardNameActive`
+(active player's name in the multi-player scoreboard row, turns ember +
+uppercase — a player-name treatment, explicitly excluded by the brief) in
+Shanghai/HalveIt/AroundTheClock/Bobs27/Cricket-adjacent files, and
+`ringSub`/`statLabel` in `Practice170GameScreen.tsx` (captions under a
+single ring value / inside a single stat tile — score labels, not section
+headers).
+
+### Confirmation: X01/Practice170/Bobs27 have nothing to fix
+
+- **`X01GameScreen.tsx`** — has the most letterspaced text of any game
+  screen (`topTitle`, `scoreBlockName`, `checkoutLabel`, `toFinishLabel`,
+  etc.), all traced to their render sites: `topTitle` is the HUD
+  mode/variant readout ("501 · BEST OF 5"), `scoreBlockName` is a player
+  name treatment, `checkoutLabel` is "CHECKOUT" inline with the live combo
+  chips it's captioning, `toFinishLabel` is "TO FINISH" rendered inline
+  with the live remaining-score value in the same `<Text>` node. All
+  score/game-state labels, none section headers. Confirmed clean.
+- **`Practice170GameScreen.tsx`** — `title` (mode pill), `ringSub` (label
+  under the practice-ring score), `statLabel` (caption inside a single
+  stat box) — same pattern, all score/state labels. Confirmed clean.
+- **`Bobs27GameScreen.tsx`** — `title` (mode pill), `scoreCardNameActive`
+  (player name), `spotlightLabel` (same shared spotlight caption as
+  above) — same pattern. Confirmed clean.
+
+### Final check
+
+`npx tsc --noEmit` clean (no changes were made in this round, across any
+of the 8 files reviewed).
+
+No commits this round — nothing needed a code change.
+
+## Round: X01 starting-score options — add 701 and 1001
+
+Scope: `src/screens/GameSetupScreen.tsx`, `src/data/gameModes.ts`.
+
+Confirmed `src/logic/x01.ts` is fully generic on `config.startingScore`
+(a plain number) — no hardcoded score assumptions, so this was a pure
+UI options-array extension, no `src/logic/` changes.
+
+**Change 1** — `GameSetupScreen.tsx` line ~338, the "Starting score"
+`OptionRow` (only rendered when `gameType === '501'`):
+```
+options={[501, 301, 201].map(...)}  →  options={[1001, 701, 501, 301, 201].map(...)}
+```
+Kept the array's existing descending order (this control was already
+descending, unlike the ascending numeric option lists elsewhere in the
+file — e.g. `legsToWin`'s `[1, 2, 3, 5, 7]`, `livesPerPlayer`'s
+`[3, 5, 7]` — so descending here matches the pre-existing local
+convention rather than the file-wide one).
+
+**Change 2** — `data/gameModes.ts` line 15: updated the '501' mode card's
+subtitle from `'Classic double-out · 501/301/201'` to
+`'Classic double-out · 201–1001'` since the old text enumerated the
+specific scores and was about to go stale. This is the only other place
+in the app that referenced the 501/301/201 set — confirmed via grep for
+`501|301|201` across `gameModes.ts`. No `selectable`/logic fields needed
+for 701/1001: `gameType` stays `'501'` for all five starting scores (301
+and 201 are separate `GameType` values only because they're standalone
+selectable historical modes with their own fixed `startingScore` in
+`GameSetupScreen.tsx` line 223 — 701/1001 don't get that treatment, they
+live purely as `startingScore` variants under the `'501'` gameType, which
+is correct since the picker only renders `{gameType === '501' && ...}`).
+
+**Layout check** — `OptionRow.tsx`'s `options` container uses
+`flexDirection: 'row', flexWrap: 'wrap'` (line 60), so chips wrap to a
+new line rather than overflowing. `legsToWin`'s existing `[1, 2, 3, 5, 7]`
+(5 items) already proves 5 items render/wrap cleanly on phone widths;
+starting score now has the same 5-item count (`1001, 701, 501, 301, 201`),
+so no layout risk — confirmed by inspection, no runtime device check
+needed since the wrap behavior is unconditional/width-driven.
+
+`npx tsc --noEmit` — clean.

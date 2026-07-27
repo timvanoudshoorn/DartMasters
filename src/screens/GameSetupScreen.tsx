@@ -335,7 +335,7 @@ export function GameSetupScreen() {
                 label="Starting score"
                 value={startingScore}
                 onChange={setStartingScore}
-                options={[501, 301, 201].map((n) => ({ value: n, label: `${n}` }))}
+                options={[1001, 701, 501, 301, 201].map((n) => ({ value: n, label: `${n}` }))}
               />
             )}
             <OptionRow

@@ -12,7 +12,7 @@ export interface GameModeInfo {
 }
 
 export const GAME_MODES: GameModeInfo[] = [
-  { type: '501', title: '501', subtitle: 'Classic double-out · 501/301/201', icon: 'dartboard', color: colors.secondary },
+  { type: '501', title: '501', subtitle: 'Classic double-out · 201–1001', icon: 'dartboard', color: colors.secondary },
   { type: '301', title: '301', subtitle: 'Fast double-out', icon: 'dartboard', color: colors.secondary, selectable: false },
   { type: '201', title: '201', subtitle: 'Sprint to zero', icon: 'dartboard', color: colors.secondary, selectable: false },
   { type: 'cricket', title: 'Cricket', subtitle: 'Standard & cut-throat', icon: 'grid', color: colors.secondary },
