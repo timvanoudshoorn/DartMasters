@@ -131,20 +131,23 @@ export function GameSummaryScreen() {
         const map: Record<string, Player> = {};
         all.forEach((p) => (map[p.id] = p));
         setPlayers(map);
-        // Bots have no stable identity across matches (GameSetupScreen mints a
-        // fresh `bot-${generateId()}` guest id per match), so the diffing logic
-        // below would always see a bot winner's stats as "first-ever" and fire
-        // the full celebration ceremony for a non-persistent opponent. Skip the
-        // computation entirely when the winner is a bot; human winners are
-        // unaffected.
-        const winnerIsBot = found?.winnerId ? (found.botPlayerIds?.includes(found.winnerId) ?? false) : false;
+        // Neither bots nor human guests have a stable identity across matches
+        // (GameSetupScreen mints a fresh `bot-${generateId()}` / `guest-${generateId()}`
+        // guest id per match), so the diffing logic below would always see a
+        // guest winner's stats as "first-ever" and fire the full celebration
+        // ceremony for a non-persistent opponent. `guestNames` covers both
+        // bot and human guests (a real saved Player never appears in it), so
+        // checking it — rather than the bot-only `botPlayerIds` — skips the
+        // computation entirely for any guest winner; only winners who are
+        // actual saved Players are unaffected.
+        const winnerIsGuest = found?.winnerId ? !!found.guestNames?.[found.winnerId] : false;
         setNewBests(
-          found?.winnerId && !winnerIsBot
+          found?.winnerId && !winnerIsGuest
             ? newPersonalBestsFromMatch(matches, found.winnerId, found.id)
             : []
         );
         setNewAchievements(
-          found?.winnerId && !winnerIsBot
+          found?.winnerId && !winnerIsGuest
             ? newAchievementsFromMatch(matches, found.winnerId, found.id)
             : []
         );
