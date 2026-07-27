@@ -1305,3 +1305,297 @@ sweep rather than commissioning a seventh proposal round** — the backlog
 this round drew from (re-examining this cycle's own recent fixes for
 incomplete guards) is a one-time well, not a repeatable source for a future
 round.
+
+---
+
+# Round 7 Report — 2026-07-27
+
+Proposal-only, no application code touched. Applied the two proven lenses
+from the brief systematically rather than searching fresh territory.
+**One genuine, small, well-evidenced finding** on the toggle-audit lens; the
+identity-consistency lens re-confirmed everything is already correctly
+guarded, with no new gap found. Ordered by build priority.
+
+## 1. `BullOffScreen.tsx`'s settled-list checkmark pop ignores "Reduce motion"
+   — the one call site the reduced-motion migration missed
+
+**What/why:** Did a full repo-wide grep for every `entering={...delay(...)}`
+Reanimated call site (34 files) and checked each one against
+`reducedMs`/`staggerDelay` gating, rather than re-trusting the "reduced-motion
+migration is complete" verdict logged after Round 5 (`head-log.md`,
+"Zero raw, ungated instances remain anywhere in `src/`" — checked
+specifically because that verdict was scoped to a `STAGGER_MS * n` grep, not
+every `entering=` delay literal). 33 of the 34 hits correctly route through
+`reducedMs()`/`staggerDelay()` (including `GameSummaryScreen.tsx`'s `REVEAL`
+constants, which pre-apply `reducedMs` to every field before use, and
+`PulseRing`, which checks `isReducedMotionEnabled()` directly). The one
+exception: `BullOffScreen.tsx:119` —
+`<Animated.View entering={ZoomIn.delay(120).springify().damping(11)}>` — a
+hardcoded, ungated 120ms delay on the small checkmark icon that pops in next
+to each settled player's row as the bull-off order locks in. This is
+squarely the kind of thing `motionPreference.ts`'s own contract calls out as
+in-scope ("Celebratory/decorative effects... pulse rings, etc. — should be
+skipped entirely or fast-forwarded"): it's a decorative confirmation pop, not
+functional feedback, structurally identical to the `ZoomIn.delay(R.trophy +
+reducedMs(220))` badge pop three lines' worth of pattern away in
+`GameSummaryScreen.tsx` that *is* correctly gated. Confirmed the file did go
+through the reduced-motion pass at some point — it already imports and
+correctly uses `staggerDelay` for the pick-grid entrance three lines below
+(line 139) — so this reads as one missed call site in an otherwise-complete
+migration, not an unmigrated file. Confirmed via `head-log.md` that
+`BullOffScreen.tsx` was only ever checked for hex/`Pressable`/`EmptyState`/
+`staggerDelay`/`PressableScale` conventions in the "design-consistency sweep
+on under-visited screens" round, never specifically audited for every
+`entering=` delay literal — so this is a real, previously-unchecked gap, not
+a re-litigation.
+**Scope:** One-line fix: `ZoomIn.delay(120)` → `ZoomIn.delay(reducedMs(120))`,
+importing `reducedMs` from `../theme/motion` (the file already imports
+`staggerDelay` from the same module, so this is adding one more named
+import, not a new dependency). Owner: **Animation Agent** (or UI/Design,
+given how trivial it is) — a single-line change in a single file.
+**Size:** Trivial — smallest finding of any round so far.
+**Risk:** None. Purely additive gating on an existing decorative animation;
+doesn't touch `src/logic/`, doesn't touch persisted data, doesn't change
+behavior for any user who hasn't enabled "Reduce motion."
+**Recommendation: build this now.** It's small enough to fold into
+literally any other dispatch this cycle, but it's a genuine, concrete
+completion of a feature (reduced-motion) the app already advertises as
+fully migrated.
+
+## Identity-consistency audit: re-confirmed clean, no new gap found
+
+Traced every "per player" computation named in the brief against where its
+`playerId` inputs actually originate, specifically looking for a path that
+could feed it a `guest-`/`bot-` id the way the (now-fixed) win-screen
+celebration once did:
+
+- **`LeaderboardScreen.tsx`** — `players` (the only source iterated for
+  every ranking category) comes from `PlayerStorage.getAll()` only (line
+  146); confirmed zero references to `guestNames`/`guestPlayers`/
+  `botPlayerIds` anywhere in the file. Guests/bots structurally cannot
+  appear on the board — re-confirms Round 6's finding, not new, but checked
+  fresh rather than assumed.
+- **`src/logic/headToHead.ts`** — takes `playerAId`/`playerBId` as plain
+  strings with no identity-source opinion of its own, so the real question
+  is what `HeadToHeadScreen.tsx` feeds it. Confirmed: its picker is
+  `PlayerPairChips`, fed `players` from `PlayerStorage.getAll()` (line 35) —
+  same as Leaderboard, guests/bots can't be selected as either side of a
+  head-to-head.
+- **`src/logic/stats.ts`'s `aggregateCareerStats`** — grepped every call
+  site (`LeaderboardScreen.tsx`, `PlayerProfileScreen.tsx`,
+  `achievements.ts`'s internal use): all three are driven by a
+  `PlayerStorage`-sourced player id (`PlayerProfileScreen`'s route param
+  is a persisted player id; `achievements.ts`'s `computeAchievements`
+  is only ever called from `AchievementsScreen.tsx` with a
+  `PlayerFilterChips`-selected, `PlayerStorage`-sourced id). No path feeds
+  a transient guest/bot id into career aggregation.
+- **`src/logic/challengeProgress.ts`** — re-read `computeDailyChallengeReport`
+  end to end (the exact function the brief asked to re-examine, since it
+  was the subject of an earlier round's per-player fix). `primaryPlayer`
+  resolution (`oldestPlayer`/`selectedPlayerId`) only ever looks inside
+  `players` — the `PlayerStorage.getAll()` result — never `config
+  .guestPlayers` or anything match-scoped for identity purposes; the
+  scenario the brief specifically raised ("could a guest accumulate
+  daily-challenge progress that then vanishes") **cannot happen**, because
+  a guest id is never eligible to become `primaryPlayer` in the first
+  place — `ChallengesScreen.tsx`'s `PlayerFilterChips` picker (added two
+  rounds ago) is, like every other picker checked above, sourced from
+  `PlayerStorage` only. This is a structurally different (and safer) shape
+  than the win-screen celebration bug, where a guest's id *was* reachable
+  because it came from `match.winnerId`, not from a picker.
+- **`GameSummaryScreen.tsx`'s existing guard** — re-read the current code
+  (not trusted from the log) to confirm the `guestNames`-based
+  `winnerIsGuest` fix from Round 6 is still in place and unmodified: it is,
+  at lines 143/145/150, and remains the only place in the app where a
+  guest/bot id is ever fed into a personal-bests/achievements diff.
+
+**No new identity-consistency gap found.** Every "per player" stat/ranking/
+progress computation in the app is gated by a `PlayerStorage`-sourced
+picker at the UI layer before it ever reaches the underlying logic module —
+the win-screen celebration was structurally unique in taking its id from
+`match.winnerId` (which *can* be a guest/bot) rather than from a picker,
+and that's exactly why it was the only place this bug class showed up
+across two prior rounds. With that path now fixed and re-verified, the
+identity-consistency lens is fully exhausted for this cycle short of a new
+feature introducing a new non-picker-sourced identity path.
+
+## Toggle/setting audit: one gap found (above), otherwise re-confirmed clean
+
+Beyond the `BullOffScreen.tsx` finding, re-verified rather than assumed:
+
+- **`soundEnabled`** — exactly two files import `expo-av`'s `Audio`
+  (`soundManager.ts`, `dartAnnouncer.ts`); both gate their sole playback
+  choke points (`playSound`/`playClip`) on the same underlying flag via
+  `isSoundEnabled()`. No other file plays audio.
+- **`hapticsEnabled`** — exactly one file imports `expo-haptics`
+  (`haptics.ts`); every exported `haptic.*`/`hapticPattern.*` call routes
+  through the module's own `gated()` wrapper. No call site anywhere else
+  in the app calls `Haptics` directly.
+- **`reducedMotionEnabled`** — `Confetti`/`ScreenFlash`/`useShake` all
+  check `isReducedMotionEnabled()` directly at their own source (re-read
+  `useShake.ts`/`ScreenFlash.tsx` fresh, both correct); `MountReveal`
+  collapses delay/duration/distance together at the component level;
+  every `entering=` call site across the whole repo checked individually
+  (34 files) — only the one `BullOffScreen.tsx` gap found.
+
+## Bottom line
+
+One trivial, single-line fix (`BullOffScreen.tsx`'s ungated checkmark pop),
+and a fully re-confirmed-clean identity-consistency sweep with no new
+gap. This is a materially thinner round than 5 or 6 — both lenses were
+applied with real rigor (a full 34-file grep for the toggle lens, a
+call-site trace for every named "per player" computation for the identity
+lens), not a token pass, and what came back is one cosmetic-severity,
+zero-risk fix. **Recommendation:** ship the one-liner whenever convenient
+(it's small enough to bundle with literally anything), and treat both of
+this round's angles as genuinely exhausted now — a future round would need
+either a new feature to audit against (a new toggle, a new identity
+concept) or a different angle entirely, not a third pass over the same two
+lenses.
+
+---
+
+# Round 8 Report — 2026-07-27
+
+**Honest headline: this round is close to empty. One small, well-evidenced,
+genuinely buildable finding on the product-completeness angle; nothing on
+the settings/customization angle beyond what's already shipped; one
+process/housekeeping observation with no code implication.** As instructed,
+this round deliberately avoided another static-code-correctness sweep and
+instead asked "what would a real darts player notice is missing," "what
+customization is a real user still missing," and "does the process
+scaffolding itself need tidying." Two of those three questions came back
+essentially empty — a genuinely different (and more honest) result than
+treating every round as guaranteed to surface 2-3 items.
+
+## 1. X01's "Starting score" picker caps out at 501 — no path to 701/1001,
+   two well-known variants real players would expect, despite the logic
+   layer already being fully generic
+
+**What/why:** Traced how 501/301/201 actually work end to end, expecting to
+find three separate game modes, and found something more interesting:
+`src/data/gameModes.ts` only lists `'501'` as `selectable` (line 15,
+subtitle literally reads "Classic double-out · 501/301/201"); `'301'` and
+`'201'` are `selectable: false` (lines 16-17), kept only for historical
+match-history lookups per their own comment. The real, single entry point
+for all of X01 is the `'501'` mode card, and `GameSetupScreen.tsx`'s
+"Starting score" `OptionRow` (lines 333-339) is the actual mode selector —
+gated to `gameType === '501'` and hardcoded to exactly `[501, 301, 201]`
+(line 338). This is good, deliberate design, not a bug: one unified X01
+entry point instead of three redundant mode cards.
+
+But cross-checking `src/logic/x01.ts` (the module that actually scores a
+leg) turns up **zero references to 501/301/201 anywhere in the file** —
+confirmed via grep, exact zero hits. `X01GameScreen.tsx` reads
+`config.startingScore ?? 501` (lines 57/86/91) with no special-casing for
+which of the three presets it is. The entire scoring/bust/checkout engine
+is already fully agnostic to the starting number — it was clearly built
+generically on purpose. Given that, capping the "Starting score" picker's
+options at exactly `[501, 301, 201]` leaves out the two other starting
+scores real darts players actually use and would expect to find in a
+generic X01 picker: **701** and **1001** — both standard, commonly-seen
+variants in exhibition play and some league formats (extended-race X01,
+same rules, just a longer race), not obscure or made-up. This is the
+correct shape of finding for this round's brief: not a bug, not a rules
+error, but a real, well-known variant genuinely absent from an app whose
+own underlying engine already supports it for free.
+**Scope:** `GameSetupScreen.tsx` line 338 — extend the options array from
+`[501, 301, 201]` to `[1001, 701, 501, 301, 201]` (or similar ordering).
+Everything downstream (`x01.ts`, `X01GameScreen.tsx`, stats/personal-bests/
+achievements, which all key off `MatchRecord.startingScore` rather than
+assuming 501) already works unmodified — confirmed via grep that the only
+other `startingScore` consumer with a numeric assumption is
+`dailyChallenges.ts` line 152 (`(m.startingScore ?? 501) === 501`), which is
+a challenge that's *specifically* about 501 matches and correctly stays
+scoped to that value regardless of what other starting scores exist.
+`TournamentSetupScreen.tsx` line 136 only derives `startingScore` from
+`gameType`, so a tournament's 501 bracket stays 501-only — fine, not part
+of this scope (tournaments picking a custom starting score would be a
+separate, bigger decision, not proposed here). Owner: **UI/Design** (or
+Logic/Systems, given it's a one-line options-array change with zero new
+state) — trivial diff, one file.
+**Size:** Trivial — a single array literal in one file.
+**Risk:** None. No `src/logic/` change (the engine is already generic), no
+persisted-shape change (`startingScore: number` already accepts any value),
+no migration concern (existing matches at 501/301/201 are completely
+unaffected). The only judgment call worth flagging to the Head Agent before
+dispatch: whether `GameModeInfo`'s subtitle text ("Classic double-out ·
+501/301/201") should be updated too, or left as marketing copy for the
+"classic" three with 701/1001 as a discoverable extra once you open the
+picker — small enough to leave to whoever builds it.
+**Recommendation: build this now if anything.** It's the only concretely
+buildable, well-evidenced product gap this round found — small, free
+(engine already supports it), and a genuine "a darts player would expect
+this" completeness gap rather than a speculative nice-to-have.
+
+## Settings/customization depth: nothing further found
+
+Read `SettingsScreen.tsx` fresh against the brief's own examples. Dark-only
+is confirmed intentional and out of scope — `CLAUDE.md`'s own design-system
+section states the app is "warm charcoal surfaces... never neon, never
+gradients" as a fixed identity, not a themeable one, and there is no light
+palette anywhere in `src/theme/colors.ts` to toggle into; proposing a
+light/dark switch would mean designing and maintaining an entire second
+palette against an explicit design mandate, not a settings gap. Sound,
+Haptics, and Reduce Motion are all present, all independently gated at
+their own single choke points (re-confirmed, not re-litigated, per Round
+7's already-thorough toggle audit), and this cycle's own history shows
+every previously-missing per-player scoping gap (CheckoutTrainer,
+Challenges) has already been found and fixed. "Vibration intensity" isn't
+a real gap either: `expo-haptics`' `ImpactFeedbackStyle` (light/medium/
+heavy/rigid/soft), which `haptics.ts` already uses for its whole vocabulary,
+has no continuous intensity dial to expose in the first place — the OS API
+itself is categorical, not a slider, so there's no missing control to add,
+only a hardware limitation. An "announcer voice" selector was the one idea
+worth taking seriously (multiple voice packs is a real, sometimes-requested
+darts-app feature) but confirmed `dartAnnouncer.ts`'s 183 clips are a
+single fixed voice with no abstraction for swapping voice sets, and
+building a second full voice pack is a content-asset undertaking (record/
+license ~183 new clips) with no evidence any user has asked for it — not
+proposing it speculatively. App icon/theme color: `app.json`/`expo`
+config already sets a single fixed icon consistent with the Charcoal &
+Ember identity; multiple icon options would be pure vanity customization
+with no functional value and no design-system precedent for it. Net: this
+angle came back genuinely empty, not under-searched.
+
+## `docs/agent-comms/` housekeeping — observation only, no code touched
+
+All three `collab-*.md` files (`collab-reduce-motion.md`,
+`collab-pb-celebration.md`, `collab-achievement-celebration.md`) describe
+features that `head-log.md` confirms are fully shipped and QA-verified
+(reduce-motion: "genuinely complete now" per the final 2026-07-27 entry;
+PB celebration: "fully shipped and closed"; achievement celebration: "all
+3 stages... now complete," QA'd as a combined unit). None of the three is
+referenced as a still-open contract anywhere in the current backlog — they
+were working documents for in-flight collabs, not living specs anything
+still builds against. They're also not large (13-16KB each) or actively
+confusing anyone right now, so this is a mild, not urgent, observation:
+worth a one-line consolidation (e.g. a short "Shipped collabs" index, or a
+header note added to each file pointing at the finished feature) next time
+someone is already in that directory for another reason, but not
+significant enough on its own to justify a dedicated dispatch. Flagging
+only because the brief specifically asked about it — not proposing an
+active archival task. (Per this agent's own scope: proposal-only, no docs
+were created or edited to test this.)
+
+## Bottom line
+
+**Recommendation: proactive-improvement rounds should stop for now.** This
+is the honest read the brief itself predicted was likely. Two of three
+angles came back empty on real investigation (not a token pass — settings
+depth was checked against the actual `expo-haptics` API surface and the
+actual voice-asset pipeline, not assumed), and the one finding that did
+surface is about as small as this cycle's smallest-ever items (a one-line
+array literal). Combined with two prior clean sweeps (Roadmap Round 4, the
+design-consistency audit), two fully-exhausted lenses (Round 7's toggle-
+gating and identity-consistency), and eight rounds of proposals across a
+codebase that keeps re-confirming as clean on fresh traces, the signal is
+consistent and no longer ambiguous: this app has been reviewed from
+essentially every angle a static/product-completeness read can offer.
+Future work should be driven by direct user requests (feature asks, bug
+reports) rather than commissioning a ninth proposal round against a well
+that these two exhausted-angle results suggest is now dry rather than
+merely thin. The `DEBUG_SAVE_FRAMES` flag from Round 3 remains the one
+still-open item awaiting a human decision — that, plus real user requests,
+is a more productive use of a future session than another self-directed
+sweep.

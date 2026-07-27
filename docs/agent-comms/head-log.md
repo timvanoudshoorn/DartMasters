@@ -1210,6 +1210,20 @@ shipped and verified. `git status` clean beyond doc files. Committing and
 pushing this whole batch (Round 5 QA integration fixes + Round 6
 proposals/fixes) now.
 
+## 2026-07-27 — QA re-verified Round 6's fixes independently: both solid
+
+Deeper trace than the original acceptance: confirmed `guestNames` has
+exactly two producer call sites (`GameSetupScreen.tsx`, `TournamentSetupScreen.tsx`),
+both using the literal `guest-`/`bot-` id prefixes, structurally
+incompatible with real `Player.id`s from unprefixed `generateId()` — a
+real player can never be misclassified as a guest. Confirmed the
+`LEGACY_FALLBACK_FIELD` entry in `CheckoutTrainerStorage`'s blob survives
+the full export→JSON→import round-trip as just another string key, and
+`isValidBackup()` only checks required-key presence, never rejects extra
+optional keys. No bugs found, nothing to fix. `npx tsc --noEmit` clean,
+`git status` clean beyond the pre-existing, already-flagged
+`.claude/worktrees/` directory.
+
 ## 2026-07-27 — UI Agent Round 2 report in, verified independently
 
 UI Agent completed all three approved tasks: `PlayerPairChips.tsx` (new,
@@ -1250,3 +1264,118 @@ keep the lighter-weight `StatPill` version as built (no tap-through). A
 secondary trends screen doesn't need full profile-screen parity; if the
 user wants tap-through to `MatchDetail` from a trend-screen record later,
 that's a separate, clearly-scoped follow-up, not a reason to redo this.
+
+## 2026-07-27 — Roadmap Round 7 verified, one trivial fix dispatched
+
+Round 7 applied the two lenses that had proven productive (toggle-gating
+gaps, guest/bot identity consistency) with real rigor: a full 34-file grep
+for every `entering=` delay literal, plus a call-site trace for every named
+"per player" computation. Found exactly one thing: `BullOffScreen.tsx:119`
+has a hardcoded `ZoomIn.delay(120)` on its settled-checkmark pop that the
+reduced-motion migration missed — the file correctly uses `staggerDelay()`
+three lines below for its pick-grid entrance, so this is one overlooked
+call site in an otherwise-complete migration. **Verified independently** —
+read the line directly, confirmed. Everything else confirmed clean:
+`LeaderboardScreen`/`headToHead.ts`/`stats.ts`/`challengeProgress.ts` all
+source `playerId` exclusively from `PlayerStorage`-backed pickers, so a
+guest/bot id structurally cannot reach any of them. Both lenses now
+honestly exhausted for this cycle — Round 7 explicit that there's very
+little left.
+
+Dispatching the one-line fix (`ZoomIn.delay(120)` → `ZoomIn.delay(reducedMs(120))`)
+plus a second, different task in parallel to keep multiple agents
+working per the user's standing instruction.
+
+## 2026-07-27 — BullOffScreen fix landed, verified — reduced-motion migration now 100% complete
+
+`ZoomIn.delay(120)` → `ZoomIn.delay(reducedMs(120))`, `reducedMs` imported
+alongside the already-present `staggerDelay`. Re-grepped the file: 5
+`entering=` hits total, only that one was ungated. **Verified
+independently:** read the line directly, `npx tsc --noEmit` clean. This is
+the last known gap in the reduced-motion migration across the entire app
+— genuinely complete now. Still awaiting the parallel second QA sweep.
+
+## 2026-07-27 — Second whole-app QA sweep: 2 real fixes, 2 legit flags
+
+Focused on interactions between features shipped across different rounds
+rather than re-checking individual features. Found and fixed:
+
+1. **`ChallengesScreen.tsx` didn't fully swap to `EmptyState` on zero
+   players** — unlike its 3 sibling picker screens (`CheckoutTrainerScreen`/
+   `AchievementsScreen`/`StatsTrendsScreen`), it left a stale pre-picker
+   hint plus the full tab bar and challenge list (all reading 0/target)
+   visible with no players. Fixed to match the established sibling
+   convention; dead `emptyHint` style removed. Verified independently —
+   read the actual `EmptyState` usage, confirmed present and matching the
+   pattern.
+2. **`Confetti.tsx`'s `PALETTE` array duplicated 2 colors as raw hex**
+   instead of referencing `COLORS.text`/`COLORS.accentDeep`, already used
+   two lines above in the same array. Verified independently — read the
+   array directly, confirmed both entries now reference the tokens.
+
+Tournament + celebration interaction confirmed clean (a tournament match
+structurally can never show "PLAY AGAIN," only the button label differs;
+the guest-celebration guard correctly covers tournament guests/bots too,
+since `guestIdentityMaps()` populates `guestNames` identically regardless
+of match origin). CheckoutTrainer backup/restore + picker confirmed safe
+(no in-memory cache, screen always mounts fresh). Repo-wide bare-`Pressable`
+and hardcoded-hex greps confirmed clean beyond documented exceptions.
+
+**Two legitimate flags, neither actioned:** `CheckoutTrainerScreen.tsx`
+uses a plain `useEffect` instead of `useFocusEffect` like its siblings
+(harmless today, no forward-navigation path exists from it, but a latent
+inconsistency worth fixing if that screen ever gains navigation);
+`DartboardLogo.tsx`'s literal SVG dartboard colors are a legitimate but
+undocumented design-system exception worth adding to `CLAUDE.md` someday.
+
+## 2026-07-27 — Round 8 in: one real tiny fix, one honest negative, recommendation to pause
+
+**Roadmap Round 8** came back close to empty as expected, but found one
+genuine, well-evidenced item: `GameSetupScreen.tsx:338` hardcodes X01's
+"Starting score" picker to `[501, 301, 201]`, while `src/logic/x01.ts`
+(confirmed via direct grep — zero hits) has no hardcoded score references
+at all, fully generic on `config.startingScore`. Two well-known variants,
+**701 and 1001**, are missing from the picker for free. Settings-depth and
+docs-housekeeping angles both came back genuinely empty (dark-only
+confirmed intentional, haptics API is categorical not continuous, no
+demand evidence for announcer voice packs). **Roadmap's own recommendation:
+stop proactive-improvement rounds** — combined with 2 QA sweeps, 2
+exhausted lenses, and this round's mostly-empty result, the signal is no
+longer ambiguous.
+
+**UI Agent's `sectionTitle` sweep on the 5 remaining game screens** came
+back as an honest, well-reasoned negative: every letterspaced-text match
+was traced to its actual render site and correctly identified as a live
+game-state indicator (`legLabel`'s round counter, `killerBadge`/
+`eliminatedText`'s per-player status, `spotlightLabel`'s per-turn
+name-bound caption) rather than a static section header — exactly the
+false-positive class the task brief warned about. No changes made, none
+needed. All 3 confirmation-only files (X01/Practice170/Bobs27) confirmed
+clean too.
+
+**Approved and dispatched:** the 701/1001 X01 variant fix (small,
+zero-risk, purely a UI options-array extension — logic engine already
+fully generic).
+
+**701/1001 fix landed, verified, accepted.** Options array changed to
+`[1001, 701, 501, 301, 201]` (descending, matching the control's existing
+order — unlike `legsToWin`'s ascending list, this one was already
+descending, so kept consistent with itself). `gameModes.ts`'s stale
+subtitle updated to reflect the new range. Confirmed `OptionRow.tsx` uses
+`flexWrap: 'wrap'` and already renders 5 items cleanly for `legsToWin`, so
+no layout risk from the 3→5 item change. Zero logic changes, as expected.
+**Verified independently:** read the actual array directly, `npx tsc
+--noEmit` clean, `git status` clean beyond doc files.
+
+**Decision on Roadmap's pause recommendation:** taking it. This closes
+proactive round-generation for now — 8 rounds, 2 whole-app QA sweeps, a
+dedicated design-consistency audit, and a dedicated accessibility pass
+have covered this codebase from every angle tried, with genuinely
+diminishing and now near-zero returns. Future work should be driven by
+direct user requests, plus the still-open `DEBUG_SAVE_FRAMES` decision
+awaiting the user's call. Will report this recommendation to the user
+once the 701/1001 fix lands and is verified.
+Both minor, queued as trivial future items, not worth a dedicated dispatch.
+
+Verified independently: `npx tsc --noEmit` clean, both fixes read
+directly and confirmed correct. `git status` clean beyond doc files.
