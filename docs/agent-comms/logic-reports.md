@@ -858,3 +858,79 @@ actual audio clip playback is gated.
 
 - `Logic Agent: gate dart announcer playback on sound-effects setting` —
   `src/sound/soundManager.ts`, `src/utils/dartAnnouncer.ts`
+
+## Round: Win-celebration bot guard was too narrow — missed human guests
+
+### Bug confirmed
+
+The earlier bot-only fix (previous section above) gated
+`setNewBests`/`setNewAchievements` in `GameSummaryScreen.tsx` on
+`found.botPlayerIds?.includes(found.winnerId)`. But `GameSetupScreen.tsx`
+mints an equally ephemeral id for every **human** guest too — a separate
+line from the bot id-minting:
+
+```ts
+const guest: GuestEntry = { id: `guest-${generateId()}`, ... };   // human guest, line ~170
+const guest: GuestEntry = { id: `bot-${generateId()}`, ... };     // bot, line ~189
+```
+
+Both are `GuestEntry` values stored in `config.guestPlayers`, with no
+stable identity across matches — a human guest has the exact same
+"first-ever record" false-positive problem as a bot. The `botPlayerIds`
+guard only covered the bot half.
+
+### Fix applied
+
+Read `src/utils/guestMaps.ts`'s `guestIdentityMaps()` to confirm the
+superset relationship before changing anything:
+
+```ts
+const botIds = entries.filter(([, g]) => g.isBot).map(([id]) => id);
+return {
+  guestNames: Object.fromEntries(entries.map(([id, g]) => [id, g.name])),  // ALL guest entries, bot or human
+  ...
+  botPlayerIds: botIds.length ? botIds : undefined,                        // bot entries only
+};
+```
+
+`guestNames` is built from every entry in `config.guestPlayers`
+unconditionally (line 17), while `botPlayerIds` is filtered to only
+`isBot` entries (line 14) — so `guestNames` is a strict superset of
+`botPlayerIds`'s keys, covering both bot and human guests. A real saved
+`Player` never appears in `guestNames` (it's populated solely from
+`config.guestPlayers`, which only ever holds guest/bot entries).
+
+Changed the guard in `GameSummaryScreen.tsx` from `found.botPlayerIds?.includes(found.winnerId)`
+to `!!found.guestNames?.[found.winnerId]`, renamed the local from
+`winnerIsBot` to `winnerIsGuest`, and rewrote the surrounding comment to
+describe both bot and human guests rather than bots only. `setNewBests`/
+`setNewAchievements` are otherwise unchanged — same functions, same args,
+same `found?.winnerId` truthiness check, just gated on the broader
+condition.
+
+### Confirms original bot-only case still works
+
+Every bot id is also written into `guestNames` (bots are guest entries
+too — `guestIdentityMaps()` doesn't special-case them out of that field),
+so any winner that was previously caught by `botPlayerIds?.includes(...)`
+is still caught by `guestNames?.[...]` being truthy. The new check is a
+strict superset of the old one, not a different/narrower one — no
+regression to the bot scenario the earlier fix addressed.
+
+### Files changed
+
+- `src/screens/GameSummaryScreen.tsx` — swapped the `winnerIsBot`/`botPlayerIds`
+  guard for `winnerIsGuest`/`guestNames`, updated the surrounding comment.
+  `buildRematchConfig`'s own unrelated `match.botPlayerIds?.includes(id)`
+  check (line ~49, used to decide whether to rebuild a bot at a fixed
+  difficulty on rematch) was left untouched — that's a genuinely
+  bot-specific concern, not part of the celebration guard.
+
+### Verification
+
+`npx tsc --noEmit` — clean, no output.
+
+### Commit
+
+- `af5a9ff` — "Logic Agent: extend win-celebration guard from bots to all guests" —
+  `src/screens/GameSummaryScreen.tsx`
