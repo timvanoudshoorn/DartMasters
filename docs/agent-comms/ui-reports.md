@@ -830,3 +830,79 @@ Commit `6314fda`.
 ### Final check
 
 `npx tsc --noEmit` clean after both tasks and at the end of the round.
+
+## Round: Under-visited screens audit (RulesScreen, BullOffScreen, PlayerEditScreen, TournamentSetupScreen, PlayersListScreen)
+
+Dedicated design-consistency pass on five screens that had only glancing or
+zero attention this cycle (per Head Agent brief: same rigor as the earlier
+"clean" verdicts on Stats/Achievements/HeadToHead). Read each file fully,
+checked against `CLAUDE.md`'s hard rules and `src/theme/` tokens.
+
+**Verdict: all five are clean. No code changes made, no commits.**
+
+### `src/screens/RulesScreen.tsx`
+- Uses `<Screen scroll>`, `PressableScale` throughout (accordion header,
+  no bare `Pressable`), `staggerDelay(index)` for the mode-card list
+  entrance (`FadeInDown`), `SPRING_GENTLE` for the layout-transition spring.
+- `mode.color + '1F'` (icon-circle tint) is not ad-hoc — confirmed via
+  grep it's the exact same convention used in `ModeSelectScreen.tsx:71`,
+  `HeadToHeadScreen.tsx:230`, `SearchScreen.tsx:157`, `StatsScreen.tsx:108`,
+  `MatchDetailScreen.tsx:88` (six sites total). No hardcoded hex anywhere
+  in the file (grep confirmed).
+- No section-title-style label exists in this file, so nothing to
+  consolidate onto `typography.overline`.
+
+### `src/screens/BullOffScreen.tsx`
+- `<Screen scroll>` present, `PressableScale` for every tap target (player
+  pick tiles), `staggerDelay(i)` for the pick grid, plain `FadeInDown`/
+  `ZoomIn` for one-shot reveals (settled rows) — correct, since those
+  aren't a cascading list. All colors route through `colors`/`COLORS`
+  tokens; no hex literals, no gradients/elevation.
+- Only prior touch this cycle was the F17 stagger-delay swap — confirmed
+  still correctly wired (`staggerDelay` imported and used at line 139).
+
+### `src/screens/PlayerEditScreen.tsx`
+- `label` style already consolidated onto `typography.overline` (prior
+  round's claim verified directly, line 237).
+- Color/avatar picker, photo picker: all `PressableScale`, no bare
+  `Pressable`; swatches use plain `colors.playerPalette`/token backgrounds,
+  no hex. Confirmed via grep this is the *only* color/avatar swatch grid
+  in the app (no sibling to compare stagger-entrance treatment against),
+  so the swatches' lack of per-item entrance animation isn't inconsistent
+  with an established pattern — nothing to fix.
+- `<Screen scroll>` present, `Button`/`Icon` used correctly, destructive
+  delete uses the standard two-step `Alert.alert` confirm pattern.
+
+### `src/screens/TournamentSetupScreen.tsx`
+- `sectionTitle` already on `typography.overline` (prior round's
+  consolidation verified, line 289).
+- Two `Card` sections use `FadeInDown.delay(reducedMs(60))` /
+  `reducedMs(140)` rather than `staggerDelay()` — this is correct, not
+  drift: it's a fixed two-section reveal (not an indexed list), and
+  `reducedMs()` still correctly collapses both delays to 0 under reduced
+  motion.
+- Guest chips/quick-guest button/switch all use `PressableScale`/
+  `SwitchRow` (never bare `Pressable`/RN `Switch`). Dynamic guest-chip
+  border color (`g.color`) and `colors.secondary + '55'` alpha tint are
+  both applied to actual per-item/token colors, not new hardcoded hex —
+  grep confirmed zero raw hex literals in the file.
+
+### `src/screens/PlayersListScreen.tsx`
+- Confirmed via `head-log.md`/prior reports this screen had received no
+  dedicated attention this cycle — audited fresh.
+- Fully clean: `<Screen scroll={players.length > 0}>`, `EmptyState` used
+  for the zero-players case, `PressableScale` for every row/header button
+  (`PRESS_SCALE.row` for list rows, matching the convention used
+  elsewhere), `staggerDelay(Math.min(i, 8))` correctly caps stagger for
+  long lists (same capping idiom as other list screens), all colors via
+  `colors`/`COLORS` tokens, no hex/gradient/elevation.
+
+### Cross-file checks
+- Repo-wide grep across these five files for bare `Pressable` (excluding
+  `PressableScale`), raw hex codes, `elevation`, and gradient usage:
+  zero hits in all five.
+- All five still render `<Screen>` as their safe-area root.
+
+**No flags for the Head Agent.** This was a genuinely clean pass — no
+manufactured changes. `npx tsc --noEmit` run at the end: clean (no changes
+were made, so this just confirms baseline health).
