@@ -616,3 +616,73 @@ directly to confirm which player's data is showing.
 ### Commits
 
 - `Logic Agent: add optional selectedPlayerId param to computeDailyChallengeReport` — `src/logic/challengeProgress.ts`
+
+## Round: Bot winner falsely triggers personal-best/achievement celebration
+
+### Bug confirmed
+
+`GameSetupScreen.tsx` (~line 189) mints a fresh `` `bot-${generateId()}` ``
+id for every bot guest on each new match — bots have no stable identity
+across matches. `GameSummaryScreen.tsx`'s load effect (~lines 126-148)
+called `newPersonalBestsFromMatch`/`newAchievementsFromMatch` for
+`found.winnerId` unconditionally. Since a bot's id never recurs, the
+diffing logic in both functions always sees a bot winner's stats as
+"first-ever" (no prior history under that one-off id exists to diff
+against), so any threshold-clearing stat fired the full celebration
+ceremony (green stat-card badges, chips, haptic accent) for a non-persistent
+opponent — routine, not rare, whenever a bot won with a qualifying stat.
+
+### Fix applied
+
+`src/screens/GameSummaryScreen.tsx`, in the `Promise.all([MatchStorage.getAll(),
+PlayerStorage.getAll()])` `.then()` block: added a `winnerIsBot` check using
+the same `match.botPlayerIds?.includes(id)` pattern already used elsewhere
+in this file (`buildRematchConfig`, ~line 49), and gated both `setNewBests`/
+`setNewAchievements` on `!winnerIsBot`:
+
+```ts
+const winnerIsBot = found?.winnerId ? (found.botPlayerIds?.includes(found.winnerId) ?? false) : false;
+setNewBests(
+  found?.winnerId && !winnerIsBot
+    ? newPersonalBestsFromMatch(matches, found.winnerId, found.id)
+    : []
+);
+setNewAchievements(
+  found?.winnerId && !winnerIsBot
+    ? newAchievementsFromMatch(matches, found.winnerId, found.id)
+    : []
+);
+```
+
+Nothing else in the file changed — celebration UI, reveal choreography,
+haptic timing, and the catch-block reset to `[]` are all untouched. A human
+winner's flow is bit-for-bit identical to before (same functions, same
+args, same truthiness check on `found?.winnerId`, just with the added
+`!winnerIsBot` term that evaluates to `true` for every human winner since
+`botPlayerIds` only ever lists guest ids explicitly marked `isBot`).
+
+### Tournament-match check (step 3)
+
+Confirmed bots *can* appear in tournament matchups: `TournamentSetupScreen.tsx`
+builds `GameConfig.guestPlayers` from the same guest-entry UI as a normal
+match (including `isBot`), and every match record — tournament or not — is
+finalized through `guestIdentityMaps()` in `src/utils/guestMaps.ts`, which
+populates `MatchRecord.botPlayerIds` from `config.guestPlayers` entries
+where `isBot` is true, independent of whether a `PendingTournamentMatchStorage`
+pointer is set. `match.winnerId` itself is also set the same way regardless
+of tournament context — it comes from the per-mode game screen's
+`MatchStorage.save()` call, not from the tournament bracket-advance logic
+(`recordMatchResult`, which only updates the `Tournament` object in the
+second `useEffect`, ~line 158, after `match.winnerId` is already loaded).
+So the `found.botPlayerIds?.includes(found.winnerId)` guard reads from the
+exact same field, populated the exact same way, whether or not
+`tournamentResult` ends up set later in the same load — no separate check
+needed, no gap for a tournament bot winner to slip through.
+
+### Verification
+
+`npx tsc --noEmit` — clean, no output.
+
+### Commit
+
+- `Logic Agent: skip PB/achievement celebration for bot winners` — `src/screens/GameSummaryScreen.tsx`
