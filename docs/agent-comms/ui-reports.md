@@ -944,3 +944,67 @@ field.
 `npx tsc --noEmit` clean. Commit `f3d927e`.
 
 Files: `src/screens/PlayerProfileScreen.tsx`.
+
+## Round: Warn before deleting a player who's in an in-progress tournament
+
+Small, additive copy fix flagged jointly by a Logic Agent trace and Roadmap
+Agent proposal this cycle: deleting a player mid-tournament is mechanically
+safe (`resolvePlayerDisplay`'s `FALLBACK` already covers a dangling id
+everywhere), but nothing told the user their deleted player would become an
+anonymous "Player" in that bracket going forward. Stayed out of
+`PlayerProfileScreen.tsx` per this round's instructions (concurrent UI Agent
+work there).
+
+### Read first
+
+`src/screens/PlayerEditScreen.tsx`'s `remove()` (line 113) and
+`src/screens/SettingsScreen.tsx`'s `removePlayer()` (line 56) — both use the
+same `Alert.alert('<title>', 'Remove <name>? Match history will be kept.',
+[Cancel, destructive Confirm])` shape, differing only in title/button
+wording ("Delete player"/"Delete" vs "Remove player"/"Remove"). Also read
+`src/storage/tournament.ts` (`TournamentStorage.getAll/get/save/remove`) and
+the `Tournament`/`TournamentMatchup`/`TournamentStatus` shapes in
+`src/types/index.ts`. Confirmed `Tournament.playerIds: string[]` (line 258)
+already holds the full participant roster for that tournament — matchups
+(`playerAId`/`playerBId`) are just null-able pairings drawn from that same
+roster, so checking `playerIds` directly is sufficient and simpler than
+walking every round's matchups.
+
+### Implementation
+
+Added `TournamentStorage.isInActiveTournament(playerId): Promise<boolean>`
+to `src/storage/tournament.ts` — `all.some(t => t.status === 'inProgress' &&
+t.playerIds.includes(playerId))`. Kept it on `TournamentStorage` itself
+(storage-layer, async, AsyncStorage-backed) rather than in
+`src/logic/tournament.ts`, whose own file header says it's deliberately
+pure/no-I/O.
+
+In both screens, made the removal-trigger function `async` and awaited
+`TournamentStorage.isInActiveTournament(id)` *before* calling `Alert.alert`,
+picking one of two message strings:
+
+- Not in an active tournament (the common case, unchanged copy):
+  `` `Remove ${name}? Match history will be kept.` ``
+- In an active tournament (new):
+  `` `Remove ${name}? Match history will be kept. They're in an in-progress tournament and will show as an unknown player in that bracket.` ``
+
+Both call sites (`Button onPress={remove}` in `PlayerEditScreen.tsx`,
+`PressableScale onPress={() => removePlayer(p.id, p.name)}` in
+`SettingsScreen.tsx`) already tolerated an async handler with no change
+needed — neither awaited a return value or chained anything off the call.
+
+**Removal behavior itself is completely unchanged:** the `Alert`'s
+Cancel/Confirm buttons and their `onPress` handlers
+(`PlayerStorage.remove(...)`, `navigation.goBack()` /
+`setPlayers((prev) => prev.filter(...))`) are untouched — only the message
+string shown before the user confirms was made conditional. No new gate,
+no blocking, no confirmation step added; this is purely an awareness/copy
+change gated on one extra async read that resolves before the `Alert` ever
+appears.
+
+### Final check
+
+`npx tsc --noEmit` clean.
+
+Files: `src/storage/tournament.ts` (new `isInActiveTournament` method),
+`src/screens/PlayerEditScreen.tsx`, `src/screens/SettingsScreen.tsx`.

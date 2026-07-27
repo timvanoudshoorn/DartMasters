@@ -672,3 +672,93 @@ across the 4 freshly re-traced modes, no dead code or diverging logic in
 scoped, and Settings' three-toggle round-trip persists and reloads
 correctly. This closes out the whole-app sweep — no blocking issues
 remain.
+
+## Round: Announcer sound-toggle gate (commit `81f9f92`)
+
+`npx tsc --noEmit` — clean (no output), checked before and after review.
+
+### 1. `isSoundEnabled()` reflects the same flag `setSoundEnabled()`/`playSound()` use — PASS
+
+`src/sound/soundManager.ts:68-76` — one module-level `let soundEnabled = true`;
+`setSoundEnabled()` writes it, `playSound()` (line 100) and the new
+`isSoundEnabled()` (line 74-76) both read it. Not a second, disconnected
+flag — same closure variable, so `playClip()`'s guard can never drift out
+of sync with the SFX gate. Traced the write path too:
+`SettingsScreen.tsx:51` (`if (patch.soundEnabled !== undefined)
+setSoundEnabled(patch.soundEnabled)`) is the only call site that writes
+`soundEnabled`, fed by the same `settings.soundEnabled` toggle row (lines
+117-118) that already gated SFX — one flag, one writer, two readers.
+
+### 2. `playClip()` is the single choke point — PASS
+
+Grepped every export in `dartAnnouncer.ts`: `announceScore` (line 301,
+routes through `playClip('bust')` or `playClip('score_N')`),
+`announceGameOn` (line 310, `playClip('game_on')`), `announceGameShot`
+(line 314, `playClip('game_shot')`), `preloadAnnouncerSounds` (loads
+clips into the `clips` map only, never plays), `cancelAnnouncements`
+(line 318, stops `currentSound` directly via `stopAsync()` — this is a
+silence path, not a playback path, so it correctly bypasses the gate
+rather than needing one). `waitForClipToFinish()`'s internal
+`sound.playAsync()` (line 271) is only ever invoked from inside
+`playClip()`, never called independently. No alternate route to audible
+playback exists outside `playClip()`.
+
+### 3. Mid-match toggle-off behavior — PASS
+
+`X01GameScreen.tsx:29` imports and calls `announceGameOn`/`announceScore`/
+`announceGameShot`/`cancelAnnouncements`; toggling "Sound effects" off in
+Settings mid-match flips the same module flag `isSoundEnabled()` reads, so
+the next `announceScore()`/`announceGameShot()` call short-circuits at
+`playClip()`'s top guard (line 277) with no native audio call at all —
+same shape as `playSound()`'s existing `if (!soundEnabled) return` guard,
+no crash risk. One parity note (not a bug): if a clip is already
+mid-playback at the moment of toggle-off, it isn't forcibly stopped —
+`playClip()`'s guard returns *before* reaching the "stop the previous
+clip" logic (lines 281-290), so an in-flight clip plays to completion
+rather than being cut short. This exactly mirrors `playSound()`'s
+existing behavior (no toggle-triggered stop of in-flight SFX either), so
+it's consistent with the app's established pattern rather than a
+regression — flagging only for awareness, not fixing, since "matches
+existing toggle behavior" was the actual bar to clear.
+
+### 4. Haptics unaffected — PASS
+
+`git log --oneline -- src/sound/haptics.ts` shows the file's last touch
+was commit `044a7aa` ("Add a Haptics toggle in Settings"); the announcer
+fix commit `81f9f92` touches only `src/sound/soundManager.ts` (+4 lines)
+and `src/utils/dartAnnouncer.ts` (+3 lines) per `git show --stat`.
+`haptics.ts` has its own fully independent `hapticsEnabled` flag
+(`src/sound/haptics.ts:19-26`, `setHapticsEnabled`/gate inside `haptic.*`
+helpers) with no shared state or import relationship to `soundEnabled` —
+confirmed zero overlap, not just zero diff.
+
+### 5. Broader audio-gating check — PASS
+
+Repo-wide grep for `Audio\.(Sound|setAudioModeAsync)|createAsync|playAsync`
+across `src/` returns matches only in `src/sound/soundManager.ts` and
+`src/utils/dartAnnouncer.ts` — no other module in the app talks to
+`expo-av` directly. This was the only gap; there is no second unguarded
+audio path anywhere else in the codebase.
+
+## Fixed
+
+Nothing — no bugs found, no code changes made this round.
+
+## Flagged, not actioned
+
+The in-flight-clip-not-stopped-on-toggle-off behavior noted in check 3.
+Deliberately not fixed: it's parity with `playSound()`'s existing
+behavior, not a regression introduced by this change, and "cut off
+mid-word on toggle" vs. "let it finish" is a product-feel judgment call
+the original SFX toggle already made the same way — not QA's call to
+overturn unilaterally.
+
+## Overall verdict: SHIP AS-IS
+
+All 5 checks pass. `isSoundEnabled()` shares the exact `soundEnabled`
+closure variable with `playSound()`/`setSoundEnabled()` (no drift risk),
+`playClip()` is confirmed the sole playback choke point across every
+exported function, mid-match toggle behavior is crash-safe and consistent
+with the pre-existing SFX toggle, haptics are provably untouched (no diff,
+no shared state), and a repo-wide audio-API grep confirms no other
+unguarded playback path exists. No fixes needed.

@@ -12,6 +12,7 @@ import { PressableScale } from '../components/primitives/PressableScale';
 import { Screen } from '../components/Screen';
 import { PlayersStackParamList } from '../navigation/types';
 import { PlayerStorage } from '../storage/storage';
+import { TournamentStorage } from '../storage/tournament';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { COLORS } from '../theme/colors';
 import { Player } from '../types';
@@ -110,9 +111,13 @@ export function PlayerEditScreen() {
     navigation.goBack();
   };
 
-  const remove = () => {
+  const remove = async () => {
     if (!editingId) return;
-    Alert.alert('Delete player', `Remove ${name}? Match history will be kept.`, [
+    const inActiveTournament = await TournamentStorage.isInActiveTournament(editingId);
+    const message = inActiveTournament
+      ? `Remove ${name}? Match history will be kept. They're in an in-progress tournament and will show as an unknown player in that bracket.`
+      : `Remove ${name}? Match history will be kept.`;
+    Alert.alert('Delete player', message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

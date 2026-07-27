@@ -17,6 +17,7 @@ import { setHapticsEnabled } from '../sound/haptics';
 import { setReducedMotionEnabled } from '../theme/motionPreference';
 import { RootStackParamList } from '../navigation/types';
 import { AppSettings, MatchStorage, PlayerStorage, SettingsStorage } from '../storage/storage';
+import { TournamentStorage } from '../storage/tournament';
 import { colors, fonts, spacing, typography } from '../theme';
 import { reducedMs, STAGGER_MS } from '../theme/motion';
 import { Player } from '../types';
@@ -53,8 +54,12 @@ export function SettingsScreen() {
     if (patch.reducedMotionEnabled !== undefined) setReducedMotionEnabled(patch.reducedMotionEnabled);
   };
 
-  const removePlayer = (id: string, name: string) => {
-    Alert.alert('Remove player', `Remove ${name}? Match history will be kept.`, [
+  const removePlayer = async (id: string, name: string) => {
+    const inActiveTournament = await TournamentStorage.isInActiveTournament(id);
+    const message = inActiveTournament
+      ? `Remove ${name}? Match history will be kept. They're in an in-progress tournament and will show as an unknown player in that bracket.`
+      : `Remove ${name}? Match history will be kept.`;
+    Alert.alert('Remove player', message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',

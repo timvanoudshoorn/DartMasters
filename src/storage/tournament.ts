@@ -26,6 +26,13 @@ export const TournamentStorage = {
     const all = await TournamentStorage.getAll();
     return all.find((t) => t.id === tournamentId) ?? null;
   },
+  /** True if this player is a participant in any tournament that's still
+   * in progress — used to warn before a player is deleted, since a
+   * deleted id just falls back to an anonymous "Player" in the bracket. */
+  async isInActiveTournament(playerId: string): Promise<boolean> {
+    const all = await TournamentStorage.getAll();
+    return all.some((t) => t.status === 'inProgress' && t.playerIds.includes(playerId));
+  },
   async save(tournament: Tournament): Promise<void> {
     const all = await TournamentStorage.getAll();
     const idx = all.findIndex((t) => t.id === tournament.id);
