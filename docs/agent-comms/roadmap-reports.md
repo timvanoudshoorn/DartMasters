@@ -1060,3 +1060,248 @@ so weighting future sessions toward direct user requests, the still-open
 (per Round 4's own recommendation, which this round's findings don't
 contradict) is a reasonable way to spend future cycles rather than
 commissioning a sixth static-read pass by default.
+
+---
+
+# Round 6 Report — 2026-07-27
+
+Proposal-only, no application code touched. This round did turn up something
+real — a direct extension of the bot-celebration bug fixed earlier this
+cycle, into a case its own fix explicitly didn't consider. `LeaderboardScreen.tsx`'s
+ranking logic reads clean on a genuine fresh trace (not just re-confirming
+Round 3's narrower question). `backup.ts` turned up one real, concrete
+omission once checked against everything the storage layer now persists,
+not just against crash-safety. Ordered by build priority.
+
+## 1. Non-bot guests can still trigger false "NEW BEST"/"UNLOCKED"
+   celebrations — the just-shipped bot-celebration fix guarded the wrong
+   condition
+
+**What/why:** Traced the guest lifecycle end to end per the brief's ask.
+`GameSetupScreen.tsx` mints a fresh id for *every* guest added to a lineup,
+bot or not: `id: \`guest-${generateId()}\`` for human guests (line 170) and
+`id: \`bot-${generateId()}\`` for bots (line 189) — structurally identical,
+both thrown away the moment the match ends, never persisted as a `Player`,
+never recurring across matches. `guestIdentityMaps()`
+(`src/utils/guestMaps.ts`) confirms this at the data-model level: it builds
+`guestNames`/`guestColors`/`guestAvatars` from **every** entry in
+`config.guestPlayers` (bot or human) but only builds `botPlayerIds` from the
+subset where `g.isBot` is true — i.e. `guestNames` is the actual "this id is
+not a stable, persisted identity" signal, `botPlayerIds` is a narrower
+subset of it.
+
+The bot-celebration fix shipped earlier this cycle (see the
+2026-07-27 "Bot-celebration bug fixed and verified" head-log entry) added
+exactly one guard to `GameSummaryScreen.tsx`'s data-load effect (lines
+140-150): `const winnerIsBot = found?.winnerId ? (found.botPlayerIds?.includes(found.winnerId) ?? false) : false;`,
+then skips `newPersonalBestsFromMatch`/`newAchievementsFromMatch` when
+`winnerIsBot` is true. Read the fix's own inline comment directly (lines
+134-139): *"Bots have no stable identity across matches... Skip the
+computation entirely when the winner is a bot; human winners are
+unaffected."* That last clause is the exact gap — it treats "bot vs. human"
+as the only relevant axis, but a **human guest** (a friend playing once on
+a shared device without a saved profile — a first-class, explicitly
+supported flow per `GameSetupScreen.tsx`'s `hasHuman` check, which accepts
+either a persisted player or a guest) has precisely the same ephemeral,
+never-recurring id as a bot. `newPersonalBestsFromMatch`/
+`newAchievementsFromMatch` (confirmed by reading both, `personalBests.ts`
+line 198 / `achievements.ts`'s equivalent) are pure id-diffs against
+`MatchRecord[]` history with zero concept of "is this id a real player" —
+same mechanism the bot bug exploited, now still reachable through the one
+case the fix's own guard doesn't check.
+
+Concretely: a guest wins a casual match and clears any threshold the game
+happens to track (a checkout, a 100+ visit, a completed leg fast enough for
+`bestLegDarts`, an achievement threshold like "throw a 180") — since no
+other match in storage has ever used that exact `guest-xxxxx` id and never
+will again, the diff against "history without this match" always reads
+zero prior qualifying matches, so it fires the full ceremony (green "NEW
+BEST" cell tint + medal badge + `haptic.rigid()` accent, "UNLOCKED · <title>"
+achievement chip) for an opponent with no persistent identity at all — the
+same false-record bug the bot fix was built to close, just still open for
+the other ephemeral-identity case the fix didn't enumerate.
+
+**Scope:** The correct guard is broader than `botPlayerIds` — it should
+cover *any* winner id that isn't a stable, persisted identity, which is
+exactly what `match.guestNames` already encodes (it's populated for every
+guest, bot or human). Replace (or supplement) the `winnerIsBot` check with
+something like `const winnerIsGuest = found?.winnerId ? Boolean(found.guestNames?.[found.winnerId]) : false;`
+and gate both `setNewBests`/`setNewAchievements` on `!winnerIsGuest` instead
+of (or in addition to — `winnerIsGuest` is now a superset of `winnerIsBot`
+since every bot is also in `guestNames`) `!winnerIsBot`. No new data needed
+— `guestNames` already exists on every `MatchRecord` and is already read
+elsewhere in this same file (line 45). Owner: **Logic/Systems** — a
+one-line guard-condition change plus an updated comment, same file/shape
+as the original fix, no signature change to either logic module.
+**Size:** Small — same shape as the original fix (a boolean guard on an
+existing conditional), arguably smaller since `guestNames` is a strict
+superset check that replaces `botPlayerIds` rather than adding a second
+condition.
+**Risk:** None. Purely a guard-condition change in a `.then()` callback;
+doesn't touch `src/logic/` game-rule modules, doesn't touch persisted
+`MatchRecord` shape (reads a field, `guestNames`, that already exists and
+is already populated by every match), doesn't change celebration behavior
+for any persisted-player winner (human or otherwise) — only tightens the
+skip condition to also cover human guests, which is the entire point.
+**Recommendation: build this now.** It's a direct, concrete continuation of
+a bug this cycle already agreed was worth fixing once — the fix just didn't
+enumerate every case that shares the underlying cause (ephemeral,
+non-recurring id), and this one is exactly as reachable as the original
+(any guest win with a qualifying stat, not a rare edge case).
+
+---
+
+## 2. `CheckoutTrainerStorage`'s best-streak data is entirely absent from
+   backup/export-import — a real, persisted, user-facing stat that
+   silently does not survive a restore
+
+**What/why:** Re-read `src/logic/backup.ts` fresh against every storage
+module that currently exists, not just re-confirming it doesn't crash.
+`BackupData` (lines 12-23) explicitly enumerates every slice it captures:
+`players`, `matches`, `settings`, `bullOffLog`, `tournaments`,
+`playerGoals` — and `exportAllData()` (lines 28-55) pulls each one from its
+owning storage module (`PlayerStorage`, `MatchStorage`, `SettingsStorage`,
+`BullOffStorage`, `TournamentStorage`, `GoalsStorage`). Cross-referenced
+this against every storage module that actually exists in `src/storage/`
+(`activeMatch.ts`, `tournament.ts`, `goals.ts`, `storage.ts`): the
+non-transient, non-session-pointer stores are `PlayerStorage`,
+`MatchStorage`, `SettingsStorage`, `BullOffStorage`, `TournamentStorage`,
+`GoalsStorage` — all six covered — **and `CheckoutTrainerStorage`, which is
+not referenced anywhere in `backup.ts` at all** (confirmed via grep: zero
+hits for `CheckoutTrainer` in the file). `ActiveMatchStorage` and
+`PendingTournamentMatchStorage` are correctly excluded on their own
+merits (transient in-progress-session pointers, not data a restore should
+plausibly want to recreate on a different device) — this is not a parallel
+oversight, it's a different, legitimate category. `CheckoutTrainerStorage`
+is not that: it's a genuine, deliberately-built persisted stat — this
+cycle's own Round 2/Round 6 work made it per-player (`getBest(playerId)`/
+`setBest(playerId, best)`, `Record<playerId, number>` under
+`@dartmasters/checkoutTrainerBest`, with a migration-safe legacy fallback)
+specifically because it's meant to be a real, durable, per-player number
+users care about — the exact kind of thing "export your data before
+switching devices" exists to protect.
+Concretely: export data, restore it onto a fresh install (or after an
+uninstall/reinstall, the primary use case `BackupRestoreScreen.tsx`'s
+staleness nudge — this cycle's own Round 1 proposal #8 — was built to
+guard against), and every player's Checkout Trainer best streak silently
+resets to whatever the still-present legacy-fallback value is (0 on a
+genuinely fresh install) even though the export file the user just
+generated has zero mention of it — not a crash, not an error, just quiet
+data loss for one specific stat that the backup's own promise ("gathers
+every AsyncStorage-backed slice," per the file's own header comment, line 1)
+says it covers.
+**Scope:** `BackupData` gains an optional field (e.g. `checkoutTrainerBest?:
+Record<string, number>`, absent on older exports treated as empty, same
+pattern already used for `tournaments`/`playerGoals`); `exportAllData()`
+reads it via a new small accessor on `CheckoutTrainerStorage` (e.g.
+`getAllRaw()`/`getAll()` returning the full stored blob rather than one
+player's value — `CheckoutTrainerStorage` currently only exposes
+per-player `getBest`/`setBest`, so a small addition is needed there too);
+`importAllData()` writes it back via the existing `setBest` per entry, or a
+new bulk-write helper mirroring the module's own internal blob shape.
+Owner: **Logic/Systems** — touches `storage.ts` (one new accessor) and
+`backup.ts` (one more slice threaded through both directions), no
+persisted-shape change to the existing key, purely additive to the backup
+schema.
+**Size:** Small — same shape as the `tournaments`/`playerGoals` additions
+already in the file; one new optional `BackupData` field, one new storage
+accessor, a few lines in each of `exportAllData()`/`importAllData()`.
+**Risk:** None. Purely additive to `BackupData` (optional field, safe
+default on older exports); the storage module's actual on-disk shape
+(`CheckoutTrainerBestBlob`) is untouched, only exposed one level further via
+a new accessor. Not a `src/logic/` game-rule change.
+**Recommendation: build this now.** It's a small, concrete, well-evidenced
+gap in a subsystem (`backup.ts`) whose entire job is "nothing gets lost" —
+exactly the kind of correctness bug the brief's third angle was aimed at
+finding, and the fix is cheap relative to the (currently silent) data-loss
+it closes.
+
+---
+
+## Areas checked, nothing proposed
+
+- **`LeaderboardScreen.tsx` — full fresh trace of `buildRows`'s ranking/
+  sorting logic**, not just re-confirming Round 3's narrower
+  `primaryPlayer`-as-gate question. `players` is sourced from
+  `PlayerStorage.getAll()` only — guests/bots never appear on the board at
+  all (they're never persisted `Player` records), so there's no analog of
+  finding #1 above here; this screen structurally can't rank an ephemeral
+  identity. Every category's null-filter (`gamesPlayed === 0`,
+  `avgThreeDart <= 0`, etc.) correctly excludes players with no qualifying
+  matches rather than showing a misleading zero row. Sort direction
+  (`b.value - a.value`, descending) is correct for all six categories —
+  none of them are a "lower is better" stat (unlike `personalBests.ts`'s
+  `bestLegDarts` special case), so no direction bug is possible here.
+  `periodCutoff`'s week/month/all-time math is straightforward date
+  arithmetic, correct. One pre-existing, already-consistent pattern
+  double-checked and *not* flagged as a new gap: the "W-L record" sub-label
+  (`${all.gamesWon}-${all.gamesPlayed - all.gamesWon} record`) counts a draw
+  as a loss in the displayed fraction — confirmed this is not a
+  Leaderboard-specific bug by cross-checking `PlayerProfileScreen.tsx` line
+  374 (`{career.gamesWon}W - {career.gamesPlayed - career.gamesWon}L`),
+  which does the exact same thing — an existing, consistently-applied
+  convention across at least two screens already, not a fresh defect
+  introduced or overlooked here.
+- **Guest lifecycle, everywhere else it's used.** Beyond the celebration
+  bug above, traced every other guest-id consumer to check for the same
+  class of issue: `CheckoutTrainerStorage`/`ChallengesScreen`/
+  `computeDailyChallengeReport` are all keyed by **persisted player ids
+  only** (their pickers pull from `PlayerStorage`, never from a match's
+  transient `guestPlayers`), so guests structurally can't reach those
+  paths at all — no parallel bug there. `resolvePlayerDisplay`/
+  `resolvePlayerDisplayFromMatch` (`src/utils/playerDisplay.ts`) already
+  handle guest ids correctly by design (that's their whole purpose — guest
+  names/colors/avatars are display-only, resolved per-match from
+  `guestNames`/`guestColors`/`guestAvatars`, never expected to persist
+  past that match). Achievements/personal-bests display on
+  `PlayerProfileScreen.tsx`/`AchievementsScreen.tsx` are both gated to
+  persisted players only (their player pickers are sourced from
+  `PlayerStorage`, same as above), so a guest's ephemeral stats are never
+  browsed retrospectively either — the win-screen celebration (finding #1)
+  is the *only* place a guest's transient identity is fed into a
+  "diff against history" computation, which is exactly why it's the only
+  place this bug class shows up.
+- **`backup.ts` — every other field added this cycle, checked individually
+  for round-trip fidelity, not just crash-safety.** `AppSettings.hapticsEnabled`,
+  `reducedMotionEnabled`, and `lastBackupAt` all round-trip correctly
+  because `SettingsStorage.save({ ...SettingsStorage.defaults, ...data.settings })`
+  is a generic spread-merge — any current or future `AppSettings` field
+  exported this way is restored automatically, no per-field code needed
+  (confirmed by reading the actual merge, not assumed). `MatchRecord.botPlayerIds`,
+  `.guestNames`, `.guestColors`, `.guestAvatars` all round-trip correctly
+  for the same reason on the match side — `MatchStorage.save(match)` writes
+  the record as-is, no field allowlist to fall out of sync with
+  `MatchRecord`'s type. `PlayerGoals`/`Tournament` (the two version-2
+  additions) both restore correctly, confirmed by re-reading the actual
+  reverse-order unshift handling for each (`BullOffStorage.record`/
+  `MatchStorage.save`/`TournamentStorage.save` all `unshift`, so importing
+  in reverse order was independently re-verified as correct, not merely
+  re-asserted). `ActiveMatchStorage`/`PendingTournamentMatchStorage` are
+  correctly, deliberately excluded (transient session pointers, not durable
+  user data) — confirmed this isn't an oversight of the same shape as
+  finding #2 by checking what each actually stores (an in-progress match
+  route-param snapshot / a pending bracket-match pointer, neither of which
+  a "restore onto a different device" scenario should try to recreate).
+
+---
+
+**Bottom line for this round:** two real, well-evidenced, build-now items —
+#1 is a direct, concrete continuation of a bug this cycle already fixed
+once (same root cause, one case the original fix's guard didn't enumerate),
+and #2 is a genuine, previously-unchecked data-loss gap in the one
+subsystem whose entire job is "nothing gets lost." Both are small, single-
+file-ish, additive, no-migration-risk fixes — closer in size to the
+smallest items from earlier rounds than to a speculative feature. This is
+*not* "nothing further found" — but consistent with the brief's framing,
+the honest read is that both findings came from directly re-examining
+recent cycle work (the bot-celebration fix, the CheckoutTrainer migration)
+against a slightly wider lens than the work that shipped them used, rather
+than from fresh, previously-unexamined territory the way Rounds 1-3 did.
+With those two exceptions, `LeaderboardScreen.tsx`'s ranking logic and the
+rest of `backup.ts`'s coverage both re-confirm as clean. **Recommendation:
+build #1 and #2, then treat this as a genuinely good point to lean on user
+requests, the still-open `DEBUG_SAVE_FRAMES` decision, or an occasional QA
+sweep rather than commissioning a seventh proposal round** — the backlog
+this round drew from (re-examining this cycle's own recent fixes for
+incomplete guards) is a one-time well, not a repeatable source for a future
+round.

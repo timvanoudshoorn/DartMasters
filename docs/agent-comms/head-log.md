@@ -1120,6 +1120,96 @@ time; both correctly declined to rewrite history over it.
 **Both accepted.** This closes every item from Roadmap Round 5. `git
 status` clean beyond doc files — committing and pushing this batch now.
 
+## 2026-07-27 — Roadmap Round 6: two more real bugs, both verified and dispatched
+
+Round 6 re-examined this cycle's own recent work rather than fresh
+territory, and found two genuine gaps:
+
+1. **The bot-celebration fix was incomplete** — it only guards on
+   `botPlayerIds`, but `GameSetupScreen.tsx:170` mints an equally ephemeral
+   `guest-${generateId()}` id for every *human* guest too (not just bots,
+   line 189), and `GameSummaryScreen.tsx`'s celebration guard (line 140)
+   only checks `botPlayerIds`, missing human guests entirely. **Verified
+   independently via direct grep** — confirmed both id-minting call sites
+   and confirmed the guard's exact blind spot. A human guest winning with
+   a qualifying stat still falsely triggers the full celebration. Fix:
+   swap the guard to `guestNames` (superset of bots, covers both).
+2. **`CheckoutTrainerStorage` is missing from backup/restore entirely** —
+   confirmed via grep: zero references to `CheckoutTrainerStorage` anywhere
+   in `backup.ts`, and it's absent from the `BackupData` interface. The
+   per-player best-streak stat (made per-player this very cycle) silently
+   fails to round-trip through export/import. Distinguished correctly from
+   `ActiveMatchStorage`/`PendingTournamentMatchStorage`'s *deliberate*
+   exclusion (those are transient session pointers, not durable stats).
+
+Everything else in Round 6 read clean: `LeaderboardScreen.tsx`'s
+ranking/sorting logic re-traced fresh (first real audit of the logic
+itself, not just the earlier `primaryPlayer` question) with no gaps;
+every other field added to `AppSettings`/`MatchRecord` this cycle confirmed
+to round-trip correctly through `backup.ts`.
+
+**Both approved, dispatching now in parallel (disjoint files):**
+Logic/Systems Agent for the `guestNames` guard swap in
+`GameSummaryScreen.tsx`, Logic/Systems Agent (separate dispatch) for
+adding `CheckoutTrainerStorage` to `backup.ts`'s export/import path.
+
+## 2026-07-27 — QA integration check: 2 more real bugs caught and fixed
+
+QA's cross-cutting review of Round 5's 3 changes together (not
+individually) found two genuine issues neither per-change review had
+caught:
+
+1. **Double-tap race in the new async player-delete flow** — making
+   `remove()`/`removePlayer()` `async` (to await the tournament check)
+   opened a window where a double-tap before the `Alert` appears could
+   fire two overlapping calls, each ending in its own `navigation.goBack()`
+   — popping an extra screen. Fixed with a `removingRef` guard in both
+   `PlayerEditScreen.tsx` and `SettingsScreen.tsx`. **Verified
+   independently** — read the actual guard, confirmed it correctly gates
+   re-entry and resets after the check resolves.
+2. **The new lone "First 9" `StatPill` stretched full-width** —
+   `StatPill.tsx`'s container has unconditional `flex: 1`; being the only
+   item in its row (rather than one of 4) made it stretch across the full
+   card width, inconsistent with every sibling row. Fixed with an additive
+   optional `style` prop on `StatPill.tsx` (confirmed the other 3 call
+   sites never pass `style`, so unaffected) plus a fixed-width override
+   for that one row.
+
+Both toggle-independence and the async-code `.then()`/`.catch()` checks
+passed cleanly, no changes needed. **Verified independently:** `npx tsc
+--noEmit` clean, both fixes read directly and confirmed correct.
+
+This is exactly the kind of subtle cross-change interaction a narrower,
+per-fix review structurally can't see — good value from grouping related
+changes into one QA pass rather than reviewing each in total isolation.
+
+## 2026-07-27 — Round 6's two fixes landed, verified, Round 6 fully closed
+
+**Guest-celebration fix:** `GameSummaryScreen.tsx`'s guard changed from
+`botPlayerIds`-only to `winnerIsGuest = !!found.guestNames?.[found.winnerId]`
+— covers both bot and human guests. **Verified independently:** read the
+actual guard, confirmed `guestNames` is built unconditionally from every
+`config.guestPlayers` entry (bots included) while `botPlayerIds` is
+filtered to bots only, so this is a strict superset — the original bot
+case still works, human guests are now also correctly excluded.
+`buildRematchConfig`'s separate, genuinely bot-specific `botPlayerIds`
+check (for bot-difficulty rebuild) was correctly left untouched — not the
+same concern. `npx tsc --noEmit` clean.
+
+**Backup/restore fix:** `CheckoutTrainerStorage` gained bulk
+`getAllBest()`/`setAllBest()` accessors (reusing the existing storage key,
+migration logic untouched); `backup.ts`'s `BackupData` gained an optional
+`checkoutTrainerBest` field, populated on export, restored on import only
+`if (data.checkoutTrainerBest)` present — so an old backup file without
+this field imports exactly as before, no wipe. **Verified independently:**
+read the actual diff — confirmed the field is optional (not in
+`REQUIRED_KEYS`), confirmed the import guard, `npx tsc --noEmit` clean.
+
+**Both accepted. Round 6 fully closed** — every item from Roadmap Round 6
+shipped and verified. `git status` clean beyond doc files. Committing and
+pushing this whole batch (Round 5 QA integration fixes + Round 6
+proposals/fixes) now.
+
 ## 2026-07-27 — UI Agent Round 2 report in, verified independently
 
 UI Agent completed all three approved tasks: `PlayerPairChips.tsx` (new,
