@@ -509,3 +509,166 @@ abandon's dangling-pointer worry was traced end to end through
 to hit, not merely "probably fine." CheckoutTrainer's migration fallback
 and per-player streak reset both check out by reading the implementation
 directly. `npx tsc --noEmit` clean throughout. No commits needed.
+
+## Round: Whole-app regression sweep (post 8+ round session)
+
+Broader than a per-round pass: read `head-log.md` and `build-log.md` in
+full first, then traced 5 cross-cutting areas fresh rather than
+re-verifying individual features already QA'd. `npx tsc --noEmit` clean
+before and after.
+
+### 1. Core scoring/checkout math, 4 modes re-traced fresh — PASS
+
+Picked Shanghai, Halve It, Bob's 27, Around the Clock (X01/Cricket/Killer/
+Practice170 had more recent deep touches logged this cycle already).
+Traced the full path screen → `src/logic/*` for each, not just the
+specific bug each had previously fixed:
+
+- **Shanghai** (`src/screens/game/ShanghaiGameScreen.tsx`,
+  `src/logic/shanghai.ts`): `scoreShanghaiVisit` sums `multiplier * target`
+  per hit and detects the instant-win via `Set` membership of 1/2/3 among
+  the visit's multipliers — correct. `getShanghaiLeader` returns `null` on
+  a tie (draw), matches `GameSummaryScreen`'s "TIED RESULT" branch. Single-
+  leg only, correctly has no leg-won ceremony wiring (matches the F10/F22
+  build-log decision that Shanghai/Bob's/HalveIt are single-leg).
+- **Halve It** (`HalveItGameScreen.tsx`, `src/logic/halveIt.ts`):
+  `scoreHalveItDart` correctly gates each target kind (`number`/`bull`/
+  `anyDouble`/`anyTriple`); `applyHalveItRound` sums qualifying darts or
+  halves (`Math.floor`) the score if the round scored zero. Toast timer
+  (`toastTimer` ref) has proper unmount cleanup (F17 pattern intact).
+- **Bob's 27** (`Bobs27GameScreen.tsx`, `src/logic/bobs27.ts`):
+  `applyBobs27Round`'s `roundValue = round * 2` correctly matches the
+  D1..D20 progression; score goes negative on a miss with no elimination,
+  confirmed still consistent with the F20 build-log decision (full
+  20-round drill, not classic elimination). `nextActiveIndex` correctly
+  skips already-finished players.
+- **Around the Clock** (`AroundTheClockGameScreen.tsx`,
+  `src/logic/aroundTheClock.ts`): `applyAtcThrow`'s bull-phase branch
+  correctly locks at `BULL_INDEX` (double bull finishes outright, single/
+  triple both bank one of two needed hits, never over-advances past bull).
+  Skip-ahead mode (`atcDoublesMode`) advances 1/2/3 targets per hit type,
+  clamped to never skip past the bull. Leg-won ceremony (`hapticPattern.legWon()`)
+  present for non-match-ending leg wins, matching the F10/F22 decision this
+  mode explicitly needed it (multi-leg, unlike the three single-leg modes
+  above).
+
+No drift found in any of the four from the cycle's haptic/reduced-motion/
+undo churn.
+
+### 2. `GameSummaryScreen.tsx`, read fully top to bottom — PASS
+
+739 lines, read in full. No dead code, no orphaned state (`match`,
+`players`, `newBests`, `newAchievements`, `tournamentResult` are all read
+and all written). No duplication between the PB and achievement paths —
+both flow through the same `extraBestsRow`/`extraNewBests`/
+`extraAchievements` rendering block and the same combined haptic gate
+(`newBests.length === 0 && newAchievements.length === 0` at line 227),
+confirmed this is genuinely one shared code path, not two copies that
+could diverge.
+
+Traced the full haptic/timer timeline for the maximal case (checkout +
+leg-won ceremony fired earlier in the game screen, then PB + achievement
+both land here): three independent `setTimeout`s in this file, each with
+proper `clearTimeout` cleanup —
+- `haptic.heavy()` at `reducedMs(REVEAL.trophy) + 120` (≈400ms default)
+- `haptic.success()` at `reducedMs(REVEAL.name) + 100` (≈660ms default)
+- `haptic.rigid()` at `reducedMs(REVEAL.stats) + reducedMs(REVEAL.newBestPop)`
+  (≈1200ms default)
+
+All three land at distinct, increasing offsets with real separation
+(~260-540ms apart) — no stacking, no overlapping windows, confirmed by
+reading the actual constants (`REVEAL` object, lines 90-103) rather than
+estimating. Confetti runs continuously in the background (not a discrete
+timed event) so it doesn't compete with these beats. `PulseRing`'s
+`withRepeat`/reduced-motion early-return is self-contained and doesn't
+touch any of the above. This reads as a deliberately paced sequence, not
+chaos, under both motion settings.
+
+### 3. Undo (F8), re-traced in 4 modes — PASS
+
+Checked X01 (has a bust-flash deferred-commit window, the interesting
+case), plus Shanghai/Halve It/Bob's 27/Around the Clock (all have simple
+synchronous-commit undo, no flash window). X01's `HudUndoButton disabled=
+{history.current.length === 0 || bustFlash}` (`X01GameScreen.tsx:436`)
+correctly blocks undo during the bust-flash window, where `visitDarts` has
+already been updated but `finishVisit` (which mutates `state.players`) is
+still pending in a `scheduleTimeout` — undoing mid-flash would pop a
+snapshot that's inconsistent with the currently-displayed (but not yet
+committed) dart. Once the flash resolves and `finishVisit` commits, `state`
+and `visitDarts` are both settled and undo correctly rolls back the whole
+visit. The other four modes have no such deferred-commit path (no flash,
+state commits synchronously in the same tick as the dart), so `disabled=
+{history.current.length === 0}` alone is correct and sufficient — confirmed
+by reading each mode's `throwDart`/`registerDart` function directly, not
+assuming parity with X01. Leg-won ceremony timing (haptic `setTimeout`
+fired *after* the state has already committed in every mode checked) never
+races the undo stack in any of them.
+
+### 4. AsyncStorage `.then()`/`.catch()`, fresh repo-wide pass — 2 BUGS FOUND, FIXED
+
+Ran a `.then(` vs `.catch(` count comparison across every file in `src/`
+with any `.then(`, then read every file with a nonzero count mismatch (and
+several matched-count files, since equal counts don't guarantee correct
+pairing) to confirm real pairing rather than trusting the count alone.
+
+**Found and fixed** (commit `769b18a`):
+- `App.tsx:40` — the launch-time `SettingsStorage.get().then((s) => {...})`
+  that seeds sound/haptics/reduced-motion state had no `.catch`. Fixed to
+  chain `.catch()` with a `console.error`, matching every other read in the
+  app (e.g. `HomeScreen.tsx`'s load effect).
+- `App.tsx:50` (pre-fix) — `configureAudioMode().then(() => {
+  preloadSounds(); preloadAnnouncerSounds(); })` also had no `.catch`.
+  Same fix applied.
+- `src/screens/BackupRestoreScreen.tsx:54` — the focus-effect
+  `SettingsStorage.get().then((settings) => { setLastBackupAt(...) })` read
+  (added when the last-backup-timestamp nudge shipped) had no `.catch`.
+  Fixed the same way.
+
+These three were the only real gaps found. `App.tsx` isn't under `src/`,
+so it wasn't covered by a `src/`-scoped grep in any prior round's audit —
+worth noting for future passes to check repo-wide, not just `src/`.
+Every other `.then()` in the codebase (30 files, ~40 call sites across
+game screens, flow screens, `soundManager.ts`, `dartAnnouncer.ts`) was
+read directly and confirmed to already have a matching `.catch()` in the
+same chain.
+
+### 5. `SettingsScreen.tsx`, read fully — PASS
+
+236 lines, read in full. All three toggles (Sound/Haptics/Reduce Motion)
+share one `update()` function (line 45-54) that: updates local state,
+persists via `SettingsStorage.save()` (now with a `.catch`, pre-existing),
+and calls the matching flag-module setter (`setSoundEnabled`/
+`setHapticsEnabled`/`setReducedMotionEnabled`) — confirmed all three
+setters exist and are imported. Traced the full round-trip for app
+relaunch: `App.tsx`'s launch effect reads `SettingsStorage.get()` and
+calls all three setters in the same order this screen uses, so a toggle
+flipped here and the app restarted correctly re-applies all three, not
+just the newest one. `sectionTitle` style correctly uses
+`typography.overline` (post-consolidation), no duplicated style found, no
+layout inconsistency across the three settings sections (Match Rules /
+Manage Players / Data) — each already used the same `Card`/`Animated.View`
++ stagger pattern before this cycle's additions.
+
+## Fixed directly
+
+- `App.tsx` — two uncaught `.then()` calls now have `.catch()` handlers.
+- `src/screens/BackupRestoreScreen.tsx` — one uncaught `.then()` now has a
+  `.catch()` handler.
+
+Commit: `769b18a`. `npx tsc --noEmit` clean after the fix.
+
+## Flagged, not actioned
+
+None this round — no ambiguous judgment calls surfaced, only the three
+clear-cut missing-catch bugs above, which were small and unambiguous
+enough to fix directly per the standing QA Agent mandate.
+
+## Overall verdict: SHIP AS-IS
+
+All 5 areas pass after fixing the 2 uncaught-promise bugs found in area 4
+(a 3rd call site in the same file family). No game-logic drift found
+across the 4 freshly re-traced modes, no dead code or diverging logic in
+`GameSummaryScreen.tsx`, undo's bust-flash guard is still correctly
+scoped, and Settings' three-toggle round-trip persists and reloads
+correctly. This closes out the whole-app sweep — no blocking issues
+remain.
