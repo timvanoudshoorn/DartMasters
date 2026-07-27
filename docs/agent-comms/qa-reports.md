@@ -762,3 +762,121 @@ exported function, mid-match toggle behavior is crash-safe and consistent
 with the pre-existing SFX toggle, haptics are provably untouched (no diff,
 no shared state), and a repo-wide audio-API grep confirms no other
 unguarded playback path exists. No fixes needed.
+
+## Round: Integration check — announcer sound toggle + avgFirstNine StatPill + tournament-delete guard (3 changes together)
+
+`npx tsc --noEmit` — clean (no output) at both the start and end of this pass.
+
+### 1. `isInActiveTournament`'s async removal flow — FAIL (fixed)
+
+Traced `PlayerEditScreen.tsx`'s `remove()` and `SettingsScreen.tsx`'s
+`removePlayer()` as they stood before this pass: both are `async` and
+`await TournamentStorage.isInActiveTournament(...)` (a real AsyncStorage
+read + JSON parse) *before* `Alert.alert(...)` is ever called. Neither the
+`Button`/`PressableScale` that triggers `remove()`
+(`PlayerEditScreen.tsx:217`, `Button` component) nor the `PressableScale`
+delete icon in `SettingsScreen.tsx:148` gets any `disabled` state during
+that window — `PressableScale.tsx`'s `Gesture.Tap()` has no built-in
+debounce, and `Button.tsx`'s `disabled` prop is never wired to an
+in-flight-async flag by either screen. Confirmed by reading
+`PressableScale.tsx:79-92` directly: `onPress` fires unconditionally on
+every successful tap, no internal one-shot guard.
+
+Consequence traced end to end: a double-tap inside that window fires
+`remove()`/`removePlayer()` twice concurrently. In `SettingsScreen.tsx`
+this is low-severity (two stacked `Alert`s, `PlayerStorage.remove`/
+`setPlayers` filter are idempotent). In `PlayerEditScreen.tsx` it's a real,
+if minor, bug: confirming "Delete" on both stacked alerts calls
+`navigation.goBack()` twice, popping an extra screen the user didn't
+intend to leave.
+
+**Fixed** (`209cd24`): added a `removingRef`/`removingIdsRef` guard in both
+files that closes the pre-Alert async window — a second tap while the
+lookup is in flight is now a no-op. Verified via `npx tsc --noEmit` and by
+re-reading both `remove()`/`removePlayer()` after the edit.
+
+### 2. `avgFirstNine`'s zero-default behavior — FAIL (fixed)
+
+`src/logic/stats.ts:79` — `emptyCareer()` defaults `avgFirstNine: 0`, and
+`aggregateCareerStats` (`stats.ts:136`) only divides when
+`firstNineMatchCount > 0`, otherwise falls through to that same `0`. A
+genuinely new player renders `career.avgFirstNine.toFixed(1)` → `"0.0"`,
+no `NaN`/crash risk — this half of the check passes.
+
+Layout half does not: `PlayerProfileScreen.tsx:392-394` puts the new
+"First 9" `StatPill` alone in its own `statsGrid` row. `StatPill.tsx`'s
+container has `flex: 1` (`StatPill.tsx:31`, unconditional, no override
+mechanism existed before this pass) and `statsGrid` (`PlayerProfileScreen.tsx:461-464`)
+is a bare `flexDirection: 'row'` with no `justifyContent`/wrap — so the
+lone pill stretches to the card's full width, directly under two rows of
+four evenly-sized pills. Confirmed this is a real visual inconsistency,
+not a subjective nit: every other stat row in this same screen (X01's two
+4-column rows, Cricket's 3-column row, the generic 2-column fallback) uses
+multiple same-sized pills; this is the only row anywhere in the file with
+a single stretched one.
+
+**Fixed** (`209cd24`): added an optional `style` prop to `StatPill`
+(additive — confirmed via grep that the other 3 call sites,
+`HeadToHeadScreen.tsx`/`StatsTrendsScreen.tsx`/`MatchDetailScreen.tsx`,
+never pass a `style` prop, so they're provably unaffected) and a
+`soloStatPill` override (`flex: 0, width: '25%'`) applied only to the
+"First 9" row, matching the visual footprint of one column in the 4-up
+rows above it instead of stretching full-width.
+
+### 3. Announcer fix vs. Sound/Haptics/Reduce Motion toggle independence — PASS
+
+Quick trace per the task's own scope (full audit already done in the
+whole-app sweep, this round's earlier report in this file): `dartAnnouncer.ts`'s
+`playClip()` (`dartAnnouncer.ts:277`) gates on `isSoundEnabled()` imported
+from `soundManager.ts` — the exact same `soundEnabled` module-level
+variable `playSound()`/`setSoundEnabled()` already use
+(`soundManager.ts:68-76`), so the announcer and gameplay SFX share one
+source of truth with zero drift risk. Haptics (`setHapticsEnabled` in
+`src/sound/haptics.ts`) and reduced motion (`setReducedMotionEnabled` in
+`src/theme/motionPreference.ts`) are separate modules with their own
+independent module-level flags — grepped `dartAnnouncer.ts` for any
+`haptic`/`reducedMotion` reference: none exist. `SettingsScreen.tsx`'s
+`update()` (`SettingsScreen.tsx:46-55`) calls each setter behind its own
+independent `if (patch.X !== undefined)` check, no shared branch or
+fallthrough between them. All three toggles remain fully independent.
+
+### 4. Repo-wide `.then()`/`.catch()` grep on this round's 3 touched files — PASS
+
+Grepped `soundManager.ts`, `dartAnnouncer.ts`, `PlayerEditScreen.tsx`,
+`SettingsScreen.tsx`, `src/storage/tournament.ts` for
+`.then(`/`.catch(`/`async`/`await`. No new async call in
+`soundManager.ts`/`dartAnnouncer.ts` beyond what already existed and was
+verified in an earlier round (this round added no new async code to
+either file — confirmed via grep, the only sound-toggle-relevant change
+was the `isSoundEnabled()` import/gate already covered in check 3).
+`TournamentStorage.isInActiveTournament` (`tournament.ts:32-35`) only
+calls `getAll()`, whose `readJson` helper (`tournament.ts:7-15`)
+internally swallows every error in its own `try/catch` and returns the
+fallback — it structurally cannot reject, so the two new unawaited-by-caller
+`remove()`/`removePlayer()` event handlers (both fire-and-forget
+`onPress` handlers, matching the app's existing pattern everywhere else)
+have no realistic uncaught-rejection path. No new unhandled promise
+introduced.
+
+## Fixed
+
+1. `PlayerEditScreen.tsx`/`SettingsScreen.tsx` — double-tap race during the
+   pre-Alert async gap in the player-delete confirm flow (ref-based guard).
+2. `StatPill.tsx`/`PlayerProfileScreen.tsx` — lone "First 9" StatPill
+   stretched full-width in its own row; added an optional `style` prop and
+   a fixed-width override for that one row.
+
+Commit: `209cd24`.
+
+## Flagged, not actioned
+
+None — both issues found this round were small and clearly scoped, so
+both were fixed directly rather than left open.
+
+## Overall verdict: FIXED, SHIP AS-IS
+
+2 of 4 checks needed a fix (both applied and verified: `npx tsc --noEmit`
+clean, `git status` shows nothing outstanding beyond this session's own
+doc files). The other 2 checks (toggle independence, uncaught-promise
+grep) pass cleanly with no changes needed. No issues remain outstanding
+from this round's 3 changes.
