@@ -958,6 +958,168 @@ per-round QA — a scope gap (`App.tsx` outside `src/`) that no individual
 round's narrower review would have caught. `git status` clean beyond this
 session's own doc files.
 
+## 2026-07-27 — Design-consistency sweep on under-visited screens: clean
+
+Head-Agent-originated task (Roadmap's own well was running thin, so
+picked the next thing directly rather than a 5th proposal round):
+dedicated audit of the 5 screens with the least direct attention this
+cycle (`RulesScreen`, `BullOffScreen`, `PlayerEditScreen`,
+`TournamentSetupScreen`, `PlayersListScreen`). **All five checked out
+clean** — no bare `Pressable`, no hardcoded hex, correct `EmptyState`/
+`staggerDelay`/`PressableScale` usage throughout, prior `typography.overline`
+consolidations confirmed still in place. `RulesScreen.tsx`'s icon-tint
+pattern verified against 6 other screens using the identical convention
+(not ad-hoc). No fixes needed, no flags raised. `npx tsc --noEmit` clean.
+Doc-only commit (`41d8a19`) since nothing needed changing.
+
+**Two consecutive clean sweeps now** (Roadmap Round 4's honest "little
+left" verdict, then this design audit) — a real signal the app is in a
+genuinely stable, polished state after this cycle's volume of work, not
+just a lack of looking.
+
+**User clarified mid-turn: multiple agents are explicitly allowed to run
+concurrently** — not just when their file scopes happen to be disjoint by
+coincidence, but as a general green light to parallelize more aggressively
+going forward. Dispatched 3 agents at once: Roadmap (Round 5), Logic
+(deleted-player-mid-tournament trace), Animation (haptic consistency
+spot-check).
+
+## 2026-07-27 — Logic Agent: deleted-player-mid-tournament — not a bug
+
+Traced the full path: `PlayerStorage.remove()` does nothing beyond
+filtering its own blob (no cross-reference cleanup); `tournament.ts`
+stores brackets as raw string ids, never live `Player` references, so
+deletion can't corrupt bracket structure, only leave a dangling id;
+`resolvePlayerDisplay` (`src/utils/playerDisplay.ts`) already has a
+hardcoded `FALLBACK = { name: 'Player', color: colors.primary }` for any
+unmatched id — never throws — and this is the exact same convention 16
+other files already rely on for dangling ids elsewhere (match history,
+stats, head-to-head). **Verified independently:** read `playerDisplay.ts`
+directly, confirmed the fallback exists exactly as described. **Verdict:
+not a bug**, no code change made, `npx tsc --noEmit` re-confirmed clean
+regardless. One cosmetic flag (not a fix): neither removal flow
+(`PlayerEditScreen.tsx`/`SettingsScreen.tsx`) warns when removing a
+player who's in an in-progress tournament — pure copy/UI work querying
+already-exposed `TournamentStorage.getAll()`, no API changes needed if
+ever picked up.
+
+## 2026-07-27 — Animation Agent: haptic consistency spot-check — all pass
+
+All 4 checks passed, no bugs, no code changed. Killer's `becomeKiller`/
+`eliminated` wiring correctly fires exactly once per transition — initially
+looked like a possible double-fire against the unconditional `dartHit`
+contact haptic, but confirmed this matches X01's identical established
+layering convention (contact haptic + distinct outcome pattern on top),
+not a bug. F7's "one haptic per dart" rule re-verified across all 5
+non-X01 game screens (not just 3), zero drift after 8+ rounds of edits.
+`legWon`/`win` single-firing confirmed in X01/Cricket/ATC, with the
+X01/Practice170-vs-Cricket/ATC timing difference (350ms delay vs.
+synchronous) correctly explained as intentional (only X01/Practice170
+have a competing checkout sequence to avoid colliding with). Practice170
+confirmed to fully mirror X01's vocabulary. `npx tsc --noEmit` clean
+(no changes made).
+
+**Round 5 wrap-up pending Roadmap Agent's report** — both originated
+tasks (tournament edge case, haptic consistency) came back clean, no
+fixes needed. Waiting on the parallel Roadmap pass before deciding what,
+if anything, opens next.
+
+## 2026-07-27 — Roadmap Round 5 in: one real bug, one small gap, one
+   convergent non-bug confirmation
+
+**Real bug, verified independently:** the dart announcer completely
+ignores the "Sound effects" Settings toggle. `dartAnnouncer.ts` is a
+fully separate playback pipeline from `soundManager.ts` (the one
+`setSoundEnabled`/`playSound` actually gates) — **confirmed via direct
+grep: zero references to `soundEnabled` anywhere in `dartAnnouncer.ts`'s
+323 lines.** Turning off Sound Effects currently leaves the announcer
+calling out every score regardless. **Approved, dispatching now** — small,
+additive fix (export an `isSoundEnabled()` getter from `soundManager.ts`,
+gate `dartAnnouncer.ts`'s `playClip()` on it).
+
+**Small gap, approved:** `CareerStats.avgFirstNine` (`stats.ts`) is
+computed correctly but has zero consumers anywhere in the repo, while
+`PlayerProfileScreen.tsx` already surfaces its sibling stats from the same
+object. One-line `StatPill` addition closes it. **Dispatching now.**
+
+**Convergent confirmation, not new information:** Roadmap independently
+traced the same deleted-player-mid-tournament question my parallel Logic
+Agent dispatch just investigated — both concluded the same thing (no
+crash, mechanically fine via `config.playerIds`, displays as the generic
+`FALLBACK` "Player" label, cosmetic gap only). Two independent
+investigations landing on the identical non-bug verdict is good
+cross-validation, not something requiring further action beyond the
+already-logged UI flag (warn-at-delete-time, still low priority).
+
+Roadmap's own closing recommendation: treat the proactive backlog as
+genuinely thinning now — build the two approved items, then lean future
+cycles toward user requests, the still-open `DEBUG_SAVE_FRAMES` decision,
+or occasional broad QA sweeps rather than defaulting to a sixth proposal
+round.
+
+**Dispatching both approved fixes now, in parallel (disjoint files):**
+Logic/Systems Agent for the announcer sound-toggle bug
+(`soundManager.ts`/`dartAnnouncer.ts`), UI/Design Agent for the
+`avgFirstNine` StatPill addition (`PlayerProfileScreen.tsx`).
+
+## 2026-07-27 — Announcer sound-toggle fix landed, verified, accepted
+
+`isSoundEnabled()` exported from `soundManager.ts`; `dartAnnouncer.ts`'s
+`playClip()` (the single choke point every `announceScore`/`announceGameOn`/
+`announceGameShot` call routes through) now early-returns when sound is
+disabled. Matches `playSound()`'s existing convention exactly (no
+cancellation of in-flight clips, same as the existing SFX toggle).
+**Verified independently:** read the actual diff — confirmed the guard is
+the very first line of `playClip()`, confirmed `dartAnnouncer.ts` has no
+haptic code so nothing else was affected, `npx tsc --noEmit` clean.
+Genuine correctness bug closed.
+
+**`avgFirstNine` StatPill also landed and verified.** Added to
+`PlayerProfileScreen.tsx`'s X01 stats card as its own third grid row
+(keeps pill widths consistent with sibling 4-pill rows), labeled
+"First 9" matching `GameSummaryScreen.tsx`'s existing convention for the
+same stat, `.toFixed(1)` formatting matching sibling averages, zero-default
+convention confirmed correct (matches `avgThreeDart`'s behavior via
+`emptyCareer()`, not a "—" placeholder). `npx tsc --noEmit` clean.
+
+**User said: make sure agents are always working on something.**
+Immediately dispatched 2 more in parallel rather than waiting: **QA Agent**
+to verify the announcer fix (single-choke-point check, mid-match toggle
+behavior, a broader grep for any other ungated audio playback elsewhere in
+the app), and **UI Agent** to build the small tournament-deletion warning
+copy both the Logic and Roadmap investigations flagged (additive Alert
+copy only, not a new blocking gate — removal behavior itself stays
+unchanged).
+
+## 2026-07-27 — Both landed: QA ship-as-is, tournament-warning copy shipped
+
+**QA Agent** verified all 5 checks pass on the announcer fix: shared-flag
+confirmation, `playClip()` sole-choke-point confirmation, mid-match
+toggle-off behavior matches the existing SFX toggle's own (non-)cancellation
+convention exactly, haptics confirmed untouched (`git show --stat` on the
+fix commit touches only the two sound files), and a fresh repo-wide grep
+for any other `Audio.Sound`/`createAsync`/`playAsync` usage found none
+outside `soundManager.ts`/`dartAnnouncer.ts` — this really was the only
+gap. **Ship as-is, no further fix needed.**
+
+**UI Agent** added `TournamentStorage.isInActiveTournament(playerId)`
+(checks `Tournament.playerIds` directly — simpler than walking matchups,
+since that field already holds the full roster) and wired both removal
+flows (`PlayerEditScreen.tsx`, `SettingsScreen.tsx`) to await it before
+showing the confirmation Alert, picking clearer copy when true. Removal
+behavior itself is completely unchanged. **Verified independently:** read
+the actual `isInActiveTournament` implementation and both call sites
+directly — confirmed correct, `npx tsc --noEmit` clean.
+
+**Both agents independently hit and correctly self-diagnosed the same
+known git-index race** (concurrent commits shuffling attribution, content
+always intact) — this is now a well-understood, harmless characteristic
+of running agents in true parallel, not something worth re-flagging each
+time; both correctly declined to rewrite history over it.
+
+**Both accepted.** This closes every item from Roadmap Round 5. `git
+status` clean beyond doc files — committing and pushing this batch now.
+
 ## 2026-07-27 — UI Agent Round 2 report in, verified independently
 
 UI Agent completed all three approved tasks: `PlayerPairChips.tsx` (new,

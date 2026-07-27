@@ -762,3 +762,301 @@ different failure mode than anything the last four rounds have been
 positioned to catch) once the one escalated item (`DEBUG_SAVE_FRAMES`) gets
 a human decision, rather than continuing to commission fresh proposal
 rounds against an increasingly dry well.
+
+---
+
+# Round 5 Report — 2026-07-27
+
+Proposal-only, no application code touched. Per the brief's own framing —
+two consecutive clean sweeps just happened (Roadmap Round 4's honest "little
+left" verdict, then a Head-Agent-originated design-consistency audit on the
+5 least-visited screens) — this round did not expect much, and mostly
+confirmed that expectation: tournament seeding math, `stats.ts`'s per-match
+computations, and most of the bot difficulty curve all read correctly on a
+fresh trace. But one of the four assigned angles turned up a genuine,
+concrete, previously-unexamined **correctness bug**, not just polish — see
+#1 below. Ordered by build priority.
+
+## 1. The "Sound effects" Settings toggle does not mute the darts announcer
+   — turning it off leaves the announcer calling out every score
+
+**What/why:** `SettingsScreen.tsx`'s only sound-related control is a single
+`SwitchRow` labeled **"Sound effects"** (line 116), backed by
+`setSoundEnabled(v)` (`src/sound/soundManager.ts`). Read `soundManager.ts`
+end to end: `playSound()` (the module's one playback entry point, used for
+`dartScored`/`bust`/`checkout`/`win`/`oneEighty`/`killerEliminated`/
+`becomeKiller`) correctly gates on the module-level `soundEnabled` flag at
+line 96 (`if (!soundEnabled) return;`) — that half works exactly as
+labeled. But `src/utils/dartAnnouncer.ts` — the separate module that powers
+the "announcer calls out your score" feature wired into `X01GameScreen.tsx`
+(`announceScore`/`announceGameOn`/`announceGameShot`, lines 110/229/253/326)
+— is a fully independent audio pipeline with **its own preload
+(`preloadAnnouncerSounds`), its own playback path (`playClip`), and no
+reference anywhere in the file to `soundEnabled` or any other mute flag**.
+Confirmed by reading the entire file (323 lines): `announceScore`,
+`announceGameOn`, `announceGameShot`, and `playClip` all call
+`sound.playAsync()` unconditionally whenever invoked — there is no gate, no
+`soundEnabled` import, nothing. Confirmed by repo-wide grep for
+`announcerEnabled`/`announcer.*Enabled`/`setAnnouncer`: zero matches
+anywhere in `src/`. Concretely: a player who taps "Sound effects" off in
+Settings — the app's only audio control, and the one this cycle's own
+silent-mode fix (`docs/agent-comms/head-log.md`, "Priority interrupt:
+announcer bug + silent-mode requirement") went out of its way to make sure
+plays reliably even with the phone's hardware silent switch on — will
+still hear a voice calling out "twenty-six," "game shot," etc. on every
+visit in X01/Practice170, the two modes the announcer is wired into. This
+reads as a real, user-facing bug: the toggle's own label makes no
+distinction between "sound effects" and "the announcer voice," and there
+is no second toggle anywhere that could plausibly be read as covering it.
+This is exactly the kind of interaction gap the brief's performance/asset
+angle was aimed at finding (I went in checking whether the 183-clip eager
+preload — deliberately batched last cycle to fix a launch freeze — was
+wasteful in some way, and while the batching itself is a sound, already-
+reasoned tradeoff not worth re-litigating, tracing the actual playback path
+end-to-end surfaced this instead).
+**Scope:** The cleanest fix mirrors the existing `haptics.ts`/
+`motionPreference.ts` pattern already used twice this cycle for exactly
+this shape of problem (module-level flag + setter, checked at the one
+playback choke point): either (a) export a `isSoundEnabled()` getter from
+`soundManager.ts` and have `dartAnnouncer.ts`'s `playClip()` check it before
+calling `sound.playAsync()`, or (b) give the announcer its own
+`setAnnouncerMuted()`-style flag driven by the same Settings toggle (if the
+Head Agent decides the announcer should be independently controllable in a
+future cycle — not proposing that scope now, just flagging it as an option).
+Option (a) is the smaller, more consistent fix: one new export + one guard
+clause in `playClip()`, no new `AppSettings` field, no new UI. Owner:
+**Logic/Systems** — a guard condition + one export, not a visual change.
+**Size:** Small — two files, no persisted-shape change (reuses the
+existing `soundEnabled` runtime flag, doesn't add a new settings key).
+**Risk:** None. Purely additive (`isSoundEnabled()` export) plus a guard
+clause at the top of an existing function; doesn't touch `src/logic/`
+game-rule modules, doesn't change the preload path (clips still load the
+same way — only playback is gated), doesn't affect the silent-mode fix
+(`playsInSilentModeIOS` stays exactly as configured; this is a separate
+concern from whether iOS mutes the app, it's whether the *user* asked the
+app to be quiet).
+**Recommendation: build this now.** It's the most concrete finding this
+round — a genuine correctness bug in the app's one and only audio control,
+not a nice-to-have, and it directly involves a feature (the announcer) that
+got significant, careful attention just last cycle for a different bug in
+the same file.
+
+---
+
+## 2. `CareerStats.avgFirstNine` is computed but displayed nowhere
+
+**What/why:** Per the brief's ask to re-read `stats.ts` fresh rather than
+only incidentally: `aggregateCareerStats()` (`src/logic/stats.ts` line 90)
+computes `avgFirstNine` correctly — a darts-standard stat (average of the
+first three visits/nine darts of each match, isolating "how hard you throw
+before checkout mode kicks in," distinct from the overall `avgThreeDart`)
+via a proper weighted average across matches (line 136). But a repo-wide
+grep for `avgFirstNine` turns up exactly 3 hits, all inside `stats.ts`
+itself (the field declaration, its zero-init, and the one line that sets
+it) — **zero consumers anywhere else in the codebase.**
+`PlayerProfileScreen.tsx` (the only screen that calls
+`aggregateCareerStats`) already displays `career.avgThreeDart`'s per-match
+analog (`firstNineAvg`) is shown once, per-match, on `GameSummaryScreen.tsx`
+("First 9", line 380) — so the number matters enough to celebrate right
+after a match, but the career-level rollup of that same stat, sitting right
+next to `career.checkoutPercent`/`career.count140Plus`/`career.winRate` in
+the exact same `CareerStats` object those `StatPill`s already read from, is
+simply never read. This is a clean, low-risk surfacing gap in the same
+family as Round 1's already-shipped "surface `computePersonalBests` outside
+PlayerProfile" proposal — no new computation, no logic change, purely a
+missing `StatPill`.
+**Scope:** Add one `StatPill label="First 9 Avg" value={career.avgFirstNine.toFixed(1)}`
+(or similar) to `PlayerProfileScreen.tsx`'s existing career-stats grid,
+alongside `avgThreeDart`/`checkoutPercent`. Owner: **UI/Design** — read-only
+consumption of an existing, already-correct pure function; no `src/logic/`
+change needed at all.
+**Size:** Small — one file, one new `StatPill`.
+**Risk:** None — purely additive UI reading an existing computed field.
+
+---
+
+## 3. Deleting a player mid-tournament silently orphans their bracket slot
+   into an anonymous, indistinguishable "Player" — the specific
+   cross-cutting interaction the brief asked to trace
+
+**What/why:** Traced the exact interaction the brief named: what happens
+to an in-progress tournament bracket if a player seeded into it is deleted
+via `PlayerEditScreen.tsx`'s "DELETE PLAYER" button. `PlayerEditScreen.tsx`'s
+`remove()` (lines 113-127) calls `PlayerStorage.remove(editingId)`
+unconditionally — confirmed by reading `PlayerStorage.remove` in
+`src/storage/storage.ts` (lines 47-57 region): it's a flat filter-and-write
+against `AsyncStorage`'s players list, with **no check against
+`TournamentStorage`, `ActiveMatchStorage`, or anything else** — the
+confirmation dialog's own copy ("Remove {name}? Match history will be
+kept.") only reassures about match history, saying nothing about
+tournaments, because the code genuinely doesn't check.
+Traced what happens next: `TournamentBracketScreen.tsx`'s `playMatchup()`
+(lines 56-70) reads `matchup.playerAId`/`playerBId` straight out of the
+persisted `Tournament` object and passes them into `GameConfig.playerIds`
+with no existence check, then `navigation.navigate('Game', { config, ... })`.
+Downstream, `X01GameScreen.tsx` (and every other game screen) builds its
+entire `MatchState.players` array directly from `config.playerIds` (line
+60) — it never looks the ids up in `PlayerStorage` to validate they exist,
+so **the match itself doesn't crash or get blocked**; it plays through
+completely normally. The only place a missing player matters is display:
+`resolvePlayerDisplay()`/`resolvePlayerDisplayFromMatch()`
+(`src/utils/playerDisplay.ts`) both fall through to a hardcoded
+`FALLBACK: PlayerDisplay = { name: 'Player', color: colors.primary }`
+(line 11) when the id isn't found in the players map and isn't a guest
+either. So the concrete end-to-end outcome: start a 4+ player tournament,
+delete one seeded player from `PlayersListScreen`/`PlayerEditScreen` before
+their bracket match is played, and when that matchup comes up the
+scoreboard, `GameSummaryScreen`, and `MatchDetailScreen` all show a plain,
+generic **"Player"** for that slot — indistinguishable from any other
+deleted player if more than one happens to be in the same bracket, with
+zero warning at delete time and zero indication at match time that
+anything is unusual (no "this player no longer exists" messaging, just a
+name that happens to read as a placeholder). The match completes normally
+and reports back into the bracket correctly (since `recordMatchResult`
+only needs the id, not a live player record), so there's no data
+corruption — this is a pure identity/display gap, not a crash risk, but a
+real one: playing (or spectating) a tournament match against a fully
+anonymous, unlabeled opponent reads as broken, and the deletion flow gives
+no hint this is about to happen.
+**Scope:** Two independent, additive options, either alone is a real
+improvement (doing both is not required):
+(a) **Warn at delete time** — `PlayerEditScreen.tsx`'s `remove()` checks
+`TournamentStorage.getAll()` for any `status !== 'completed'` tournament
+whose `rounds[].matchups[]` reference `editingId` in `playerAId`/`playerBId`
+and not yet decided (`!winnerId`), and if found, adds a line to the existing
+`Alert.alert` confirmation copy naming the in-progress tournament(s) so the
+user makes an informed choice rather than being surprised later. No
+blocking needed — this is a heads-up, not a hard stop (the player may
+legitimately want to delete them and accept the tournament plays out with a
+placeholder name, e.g. a one-off guest who's since been removed).
+(b) **Better fallback identity** — give `FALLBACK` in `playerDisplay.ts` a
+slightly more honest label than a bare "Player" when it's specifically a
+tournament-bracket lookup miss (e.g. "Deleted Player") so it at least reads
+as intentional rather than as a bug, and so two different deleted players
+in the same bracket aren't visually identical. Smaller, standalone change,
+independent of (a).
+Owner: **Logic/Systems** for (a) (a read-only cross-storage check + a
+string appended to existing alert copy, no schema change), **UI/Design** or
+**Logic/Systems** for (b) (a one-line string change to an existing
+constant/fallback).
+**Size:** Small for either half; both together still small — no persisted-
+shape change, no `src/logic/` game-rule change (bracket propagation/
+`recordMatchResult` itself is untouched either way).
+**Risk:** None. (a) only reads additional storage before showing an
+existing confirmation dialog; (b) only changes a display-string constant
+already designed to be a graceful fallback. Neither touches
+`AsyncStorage` shapes or game-rule modules.
+
+---
+
+## Areas checked, nothing proposed
+
+- **`src/logic/tournament.ts` — full fresh trace of `createBracket`,
+  `seedOrder`, `propagate`, `recordMatchResult`.** Odd player counts:
+  `nextPowerOfTwo`/`seedOrder` correctly spread byes across round-0 so a bye
+  is never paired against another bye (traced a 5-player and a 6-player
+  case by hand against the seed-order recursion — both produce the expected
+  bye distribution). Single-player tournaments are correctly rejected
+  (`createBracket` throws `'A tournament needs at least 2 players'` for
+  `playerIds.length < 2`) — confirmed `TournamentSetupScreen.tsx` also
+  independently gates its own "Start" button on 2+ selected players, so the
+  throw path is a defensive backstop, not a reachable crash. Re-seeding
+  after mid-tournament removal doesn't exist as a concept anywhere in the
+  code (the bracket is generated once at creation and never regenerated) —
+  see item #3 above for what actually happens instead, which is a display
+  gap rather than a missing re-seed feature; re-seeding a live bracket
+  mid-tournament would itself be a much bigger, riskier feature (renumbering
+  already-decided matchups) not worth proposing speculatively.
+  `recordMatchResult`'s defensive guards (winner-must-be-in-matchup,
+  can't-redecide-a-different-match) were already confirmed correct in
+  Round 2 — re-confirmed still in place and untouched.
+- **`src/logic/stats.ts` — every other field besides `avgFirstNine`.**
+  `computeX01PlayerResult`'s `doublesHit` field is computed but its only
+  consumer is `dailyChallenges.ts` (challenge progress tracking) — its own
+  type comment says "for challenge tracking," so this is intentional, not a
+  gap. `legsPlayed`'s only consumer is two `achievements.ts` threshold
+  definitions — also intentional (a derived stat that exists specifically
+  to power an achievement, not meant for a standalone display). Every other
+  `CareerStats` field (`winRate`, `checkoutPercent`, `highestCheckout`,
+  `highestVisit`, `oneEighties`, `count100Plus`, `count140Plus`,
+  `bestLegDarts`, `bestThreeDartAvg`) is displayed somewhere in
+  `PlayerProfileScreen.tsx`/`GameSummaryScreen.tsx`. `computeWinStreak` and
+  `countOpponentLegs` both read correctly on a fresh trace.
+- **Sound/asset loading, beyond the announcer-toggle bug above.**
+  `soundManager.ts`'s 7 SFX files are small, correctly cached after first
+  load (`loadSound`'s `cache` check), and volume-balanced — no waste found
+  there. `dartAnnouncer.ts`'s 183-clip eager preload at launch (regardless
+  of whether the user ever plays X01/Practice170, the only two modes wired
+  to it) is a real, non-trivial resident-memory footprint held for the
+  app's entire lifetime, but this is a deliberate, already-reasoned
+  tradeoff from last cycle's freeze-fix work (`PRELOAD_BATCH_SIZE = 8`,
+  extensively commented in the file explaining exactly why full-serial and
+  full-concurrent preload both failed) — not re-proposing a change to it
+  without a concrete new problem, since "preload everything so first-use
+  has zero latency" is a reasonable, explicit design choice for a small
+  (audio-only) asset set, not an oversight. No redundant re-fetch-on-focus
+  patterns found beyond the expected, correct kind (screens re-reading
+  `PlayerStorage`/`MatchStorage` on focus so lists reflect changes made
+  elsewhere — every one of the 18 files using `useFocusEffect` is doing
+  exactly that, not duplicating work already done).
+- **`src/logic/bot.ts` — fresh read across every mode it plays.** X01's
+  `decideX01Dart` is the most sophisticated (real checkout-table lookups,
+  separate double-vs-non-double success chance, a documented straight-out
+  special case for the F9 fix). Cricket/ATC/Killer/Shanghai/HalveIt's
+  decision functions all follow the same shape (a `hitChance` scaled off
+  `profile.skill`, then a multiplier roll scaled off skill again) — none
+  reads as structurally weaker or simplistic relative to the others; the
+  different exact formulas per mode are appropriate to each mode's
+  different mechanics (e.g. Killer's target-selection logic sensibly biases
+  stronger bots toward the lowest-life opponent via `chance(profile.skill)`,
+  while ATC/Shanghai have no "target selection" concept at all since
+  there's only one target per turn). `decideKillerClaim` (picking which
+  number becomes a bot's own Killer number) is uniform-random regardless of
+  difficulty — confirmed this is correct, not an oversight: claiming your
+  assigned number in real Killer isn't a skill-based decision, there's
+  nothing to bias. Confirmed `Bobs27` has no bot decision function in
+  `bot.ts` at all — checked `GameSetupScreen.tsx` and found this is by
+  design (`BOT_UNSUPPORTED_MODES: GameConfig['gameType'][] = ['practice170',
+  'bobs27']`, line 40), so there's no gap to fill, not a missing mode.
+  `avgTarget` on `BotProfile` is display-only (shown as "~N avg" on the
+  difficulty picker in `GameSetupScreen.tsx`) and isn't wired into any
+  decision function's actual math — worth noting as a minor, low-value
+  observation (the label is an approximation, not a verified guarantee of
+  what each difficulty actually averages), but not proposing a fix since
+  re-tuning five bot profiles' underlying `skill`/`doubleAccuracy` numbers
+  to hit an exact target average is speculative busywork without a report
+  of the bots actually feeling miscalibrated in play.
+- **Minor naming-only observation, not a bug:** `src/theme/index.ts`
+  aliases `neonGreen`/`neonCyan`/`neonRed` to `COLORS.positive`/
+  `COLORS.textSub`/`COLORS.bust` (lines 27-29) — the values themselves are
+  already correct, on-palette, non-neon colors (confirmed by reading the
+  actual hex/token chain), so this is not a design-system violation and
+  nothing renders incorrectly. It's leftover naming debt from what was
+  presumably an earlier, differently-themed version of the app, and it's
+  the kind of thing a hex/neon grep for *values* (which every prior round's
+  design audits have correctly run) will never catch, since the token
+  *names* say "neon" while the *values* don't. Flagging only because it's
+  genuinely new territory (no prior round looked at token names, only
+  values), not proposing a rename — purely cosmetic to source readability,
+  zero user-facing effect, and touches `theme/index.ts` plus every call
+  site using these three aliases for a rename with no functional benefit.
+
+---
+
+**Bottom line for this round:** one real, well-evidenced, build-now bug
+(#1, the announcer/sound-toggle mismatch — genuinely new territory, not a
+re-hash), one small clean surfacing gap (#2), and one real but lower-
+severity UX/identity gap in a cross-cutting interaction the brief
+specifically asked to trace (#3). This is *not* "nothing found" — but it's
+also thinner than Rounds 1-3, consistent with the two clean sweeps just
+before it. **Recommendation: build #1 now** (it's a genuine correctness bug
+a real user would notice and be confused by), take #2 and #3 as small
+follow-ups whenever convenient, and after this round, it's reasonable for
+the Head Agent to treat the *proactive* improvement phase of this cycle as
+substantially wound down — future proposal rounds are likely to keep
+finding smaller and smaller things (as this one did relative to the last),
+so weighting future sessions toward direct user requests, the still-open
+`DEBUG_SAVE_FRAMES` decision, or an occasional broad QA/regression sweep
+(per Round 4's own recommendation, which this round's findings don't
+contradict) is a reasonable way to spend future cycles rather than
+commissioning a sixth static-read pass by default.

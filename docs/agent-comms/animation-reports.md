@@ -229,3 +229,103 @@ complete** (Logic's `newAchievementsFromMatch` diffing, UI's chip
 rendering reusing the PB chip component, this stage's confirmation that
 entrance timing already matched + the haptic gate fix). Ready for
 QA/Integration Agent's cross-check.
+
+## Per-dart haptic-vocabulary spot-check (2026-07-27)
+
+**Summary:** Fresh listen-through of the per-dart haptic vocabulary across
+game screens, requested because the PB/achievement/reduce-motion work this
+cycle only touched `GameSummaryScreen.tsx` and the per-screen vocabulary
+hasn't had a dedicated check since the original F7 double-fire cleanup.
+Read `src/sound/haptics.ts` and `src/sound/useSoundEffects.ts` fully, plus
+full reads of `KillerGameScreen.tsx` and `Practice170GameScreen.tsx`, and
+targeted greps + reads across `CricketGameScreen.tsx`,
+`ShanghaiGameScreen.tsx`, `AroundTheClockGameScreen.tsx`,
+`Bobs27GameScreen.tsx`, `HalveItGameScreen.tsx`, and `X01GameScreen.tsx`
+(used as the reference implementation). **All 4 checks pass. No bug
+found, no changes made, no commit.**
+
+**Check 1 — Killer `becomeKiller`/`eliminated` wiring: PASS.**
+Traced the actual transition logic in `KillerGameScreen.tsx`'s `throwAt`
+(lines 250-302):
+- `becameKiller` (line 261): `!prevActive?.isKiller && newActive?.isKiller`
+  — true only on the exact non-killer→killer transition, never on
+  subsequent hits while already a killer. Correct, fires once.
+- `eliminatedSomeone` (lines 263-267): compares the hit-number owner's
+  `eliminated` flag before vs. after `applyKillerThrow`, requiring
+  `owner.playerId !== activePlayerId` — fires once per elimination event,
+  not on ordinary hits, not on self-hits.
+- Both conditions are mutually exclusive per dart (becoming a killer comes
+  from hitting your own number; eliminating someone comes from hitting an
+  opponent's number claimed by them), so there's no risk of both firing
+  in the same throw.
+- **Initial concern, ruled out on closer read:** line 255 fires
+  `hapticPattern.dartHit(effMult)` unconditionally on every hit *before*
+  the becomeKiller/eliminated checks run, so it looked like a double-fire
+  candidate. Confirmed this is not a bug by comparing against
+  `X01GameScreen.tsx`'s `tapDart` (lines 333-369): X01 fires the
+  weight-scaled contact haptic on the DartPad tap (via
+  `DartPad.tsx` line 45, `hapticPattern.dartHit`) and *then*, in the same
+  function, layers `playSfx('bust')`/`playSfx('checkout')` — a distinct
+  multi-beat outcome signature — right on top of it. That's the
+  established pattern app-wide: physical contact haptic fires
+  immediately, richer outcome-specific patterns (bust, checkout, legWon,
+  becomeKiller, eliminated) layer on top rather than replace it. Killer's
+  comment at lines 271-272 ("Sound only — the weighted contact haptic
+  already fired above; playSfx would layer a second, fixed-weight dartHit
+  haptic on top of it") is specifically about the *plain-hit* branch,
+  where `playSfx('dartScored')` would add a redundant *second* generic
+  `dartHit(1)` — that's correctly avoided by using `playSound` there
+  instead. The becomeKiller/eliminated branches correctly use `playSfx`
+  because they're layering a *different*, semantically distinct pattern,
+  not a duplicate. Verdict: matches the app-wide convention, not a bug.
+
+**Check 2 — F7 rule spot-check across Cricket/Shanghai/ATC/Bobs27/HalveIt:
+PASS, no drift.** Grepped every `haptic=`, `hapticPattern`, `playSfx`,
+`playSound`, `SegmentButton` call site in all 5 screens:
+- Every dart-input `SegmentButton` in all 5 screens passes `haptic="none"`
+  (e.g. `CricketGameScreen.tsx` lines 384/398, `ShanghaiGameScreen.tsx`
+  lines 249-259, `AroundTheClockGameScreen.tsx` lines 307-345,
+  `Bobs27GameScreen.tsx` lines 223-224, `HalveItGameScreen.tsx` lines
+  312-379) — several even carry an explicit inline comment reaffirming
+  why (`ShanghaiGameScreen.tsx` line 247, `AroundTheClockGameScreen.tsx`
+  line 306, `Bobs27GameScreen.tsx` line 222, `HalveItGameScreen.tsx` line
+  311: "haptic=\"none\": throwDart/registerDart delivers the weighted
+  haptic"). No new call site has drifted from this rule in 8+ rounds of
+  edits.
+- Every screen's dart-registration handler fires exactly one weighted
+  `hapticPattern.dartHit(mult)` per dart on a hit
+  (`CricketGameScreen.tsx:219`, `ShanghaiGameScreen.tsx:146`,
+  `AroundTheClockGameScreen.tsx:184`, `Bobs27GameScreen.tsx:146` — fixed
+  at `dartHit(2)` since Bobs27 is double-only by rule,
+  `HalveItGameScreen.tsx:204`), paired with `playSound` (not `playSfx`)
+  for the ordinary win/plain-hit case — the same "sound only, physical
+  already fired" discipline as Check 1.
+
+**Check 3 — `legWon`/`win` single-firing, traced in X01 + Cricket + ATC:
+PASS.** `X01GameScreen.tsx` `finishVisit` (lines 227-331): the
+`matchWinnerId` branch returns via `finalizeMatch` (→ `playSfx('win')`)
+*before* reaching `scheduleTimeout(() => hapticPattern.legWon(), 350)` at
+line 309, so a match-ending leg never double-fires both `legWon` and
+`win`. `CricketGameScreen.tsx` (lines 236-261) and
+`AroundTheClockGameScreen.tsx` (lines 201-224) follow the identical
+guard shape: `if (newLegsWon[winnerId] >= legsToWin) { finalizeMatch(...); return; }` before the `hapticPattern.legWon()` call — confirmed by
+direct read, not just grep. Cricket/ATC fire `legWon()` synchronously
+(no delay) rather than X01/Practice170's 350ms `scheduleTimeout`, but
+that's correct for their case: X01/Practice170 need the delay because a
+checkout dart already triggered a 220ms `checkout` haptic sequence that
+`legWon` would otherwise collide with; Cricket/ATC's leg-ending dart is
+an ordinary mark (no competing outcome sequence), so immediate firing
+doesn't collide with anything. Not a bug, just correctly adapted per-mode
+timing — flagging only as an observation, not asking for a change.
+
+**Check 4 — Practice170 vocabulary parity: PASS, no gap.** Full read of
+`Practice170GameScreen.tsx`. It reuses `DartPad` for the weighted contact
+haptic (line 271-272 comment confirms), `playSfx('bust')`/`playSfx('checkout')` for outcome sequences (lines 251, 265), `scheduleTimeout(() =>
+hapticPattern.legWon(), 350)` for the non-match-ending round win (line
+239, same 350ms stagger as X01, guarded by the same
+`if (matchWinnerId) { ...; return; }` pattern before it at lines 233-237),
+and `playSfx('win')` in `finalizeMatch` (line 184). No haptic gap unique
+to its shared-target mode.
+
+**No fixes needed, no commit.** All four checks confirm the vocabulary is
+intact and consistent; nothing flagged for a bigger follow-up.
