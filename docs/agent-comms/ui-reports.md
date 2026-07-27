@@ -906,3 +906,41 @@ checked against `CLAUDE.md`'s hard rules and `src/theme/` tokens.
 **No flags for the Head Agent.** This was a genuinely clean pass — no
 manufactured changes. `npx tsc --noEmit` run at the end: clean (no changes
 were made, so this just confirms baseline health).
+
+## Round: Surface `CareerStats.avgFirstNine` on PlayerProfileScreen
+
+Read `src/logic/stats.ts` fully (not touched, per instructions): confirmed
+`avgFirstNine: number` on `CareerStats` (line 61) is a weighted average of
+each match's `firstNineAvg` (itself darts-weighted per match,
+`(firstNineScored / firstNineDarts) * 3`, `stats.ts` lines 15-18/128-136),
+defaulting to `0` via `emptyCareer()` when a player has no matches for the
+given game-type filter — same "just show 0.0, no dash" convention as the
+sibling `avgThreeDart` field, not the "—" convention used by count/best
+fields like `highestCheckout`/`bestLegDarts`.
+
+Grepped for an existing label for this exact stat before inventing new
+copy: `GameSummaryScreen.tsx:380` already renders it per-match as
+`<RevealStat label="First 9" value={r.firstNineAvg || null} format={(n) => n.toFixed(1)} .../>`.
+Matched both the label ("First 9") and the formatting (`toFixed(1)`)
+exactly for cross-app consistency.
+
+**Placement:** `src/screens/PlayerProfileScreen.tsx`'s `GameTypeStats`
+component, inside the `isX01` block — the existing X01 stats already
+render two `statsGrid` rows of four `StatPill`s each (3-Dart Avg/Checkout
+%/Highest CO/180s, then 100+/140+/Best Leg/Win Rate). Added a third
+`statsGrid` row directly below containing a single `StatPill` for
+`career.avgFirstNine.toFixed(1)`, labeled "First 9", with the same
+`accent={colors.neonCyan}` used on the sibling "3-Dart Avg" pill (both are
+per-visit scoring averages, so sharing that accent groups them visually).
+Chose a new third row over squeezing a 5th pill into the existing
+four-pill row so every pill's flex-basis stays identical to its row
+siblings — `StatPill` is `flex: 1` inside a plain row `View`, so a 5-item
+row would render visibly narrower pills than the 4-item rows above it.
+
+No changes to `src/logic/stats.ts`, `src/types/`, or any storage/data
+shape — purely an additive render change reading an already-computed
+field.
+
+`npx tsc --noEmit` clean. Commit `f3d927e`.
+
+Files: `src/screens/PlayerProfileScreen.tsx`.
