@@ -389,6 +389,9 @@ function GameTypeStats({
             <StatPill label="Best Leg" value={career.bestLegDarts ?? '—'} accent={colors.gold} />
             <StatPill label="Win Rate" value={`${career.winRate.toFixed(0)}%`} />
           </View>
+          <View style={[styles.statsGrid, { marginTop: spacing.sm }]}>
+            <StatPill label="First 9" value={career.avgFirstNine.toFixed(1)} accent={colors.neonCyan} />
+          </View>
         </>
       )}
       {isCricket && (
