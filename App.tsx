@@ -37,20 +37,28 @@ export default function App() {
   });
 
   useEffect(() => {
-    SettingsStorage.get().then((s) => {
-      setSoundEnabled(s.soundEnabled);
-      setHapticsEnabled(s.hapticsEnabled);
-      setReducedMotionEnabled(s.reducedMotionEnabled);
-    });
+    SettingsStorage.get()
+      .then((s) => {
+        setSoundEnabled(s.soundEnabled);
+        setHapticsEnabled(s.hapticsEnabled);
+        setReducedMotionEnabled(s.reducedMotionEnabled);
+      })
+      .catch((err) => {
+        console.error('[App] Failed to load settings:', err);
+      });
     // Audio session mode (silent-switch override) must be applied before any
     // sound preloads so playback is audible from the very first clip —
     // configureAudioMode() is the single owner of this native call, awaited
     // here rather than raced against another independent setAudioModeAsync
     // call elsewhere.
-    configureAudioMode().then(() => {
-      preloadSounds();
-      preloadAnnouncerSounds();
-    });
+    configureAudioMode()
+      .then(() => {
+        preloadSounds();
+        preloadAnnouncerSounds();
+      })
+      .catch((err) => {
+        console.error('[App] Failed to configure audio mode:', err);
+      });
   }, []);
 
   useEffect(() => {

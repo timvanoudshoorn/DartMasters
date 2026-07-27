@@ -51,9 +51,13 @@ export function BackupRestoreScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      SettingsStorage.get().then((settings) => {
-        if (!cancelled) setLastBackupAt(settings.lastBackupAt ?? null);
-      });
+      SettingsStorage.get()
+        .then((settings) => {
+          if (!cancelled) setLastBackupAt(settings.lastBackupAt ?? null);
+        })
+        .catch((err) => {
+          console.error('[BackupRestoreScreen] Failed to load settings:', err);
+        });
       return () => {
         cancelled = true;
       };
